@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../models/address.dart';
 import '../models/transaction.dart';
+import '../models/user_scheme.dart';
 import '../services/storage_service.dart';
 import '../widgets/common/card_widget.dart';
 
@@ -211,17 +212,20 @@ class _BonusScreenState extends State<BonusScreen> {
       children: _users.map((user) {
         final bonusAmount = clientBonuses[user.id] ?? 0.0;
         
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+        return InkWell(
+          onTap: () => _showUserProfileDialog(user, bonusAmount),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+              ),
             ),
-          ),
-          child: Row(
+            child: Row(
             children: [
               CircleAvatar(
                 radius: 24,
@@ -285,6 +289,7 @@ class _BonusScreenState extends State<BonusScreen> {
                 color: Colors.blue,
               ),
             ],
+            ),
           ),
         );
       }).toList(),
@@ -520,5 +525,316 @@ class _BonusScreenState extends State<BonusScreen> {
         );
       }
     }
+  }
+
+  void _showUserProfileDialog(User user, double bonusAmount) async {
+    // Get user's scheme information
+    final userSchemes = await _storageService.getUserSchemes();
+    UserScheme? userScheme;
+    try {
+      userScheme = userSchemes.firstWhere(
+        (scheme) => scheme.userId == user.id,
+      );
+    } catch (e) {
+      userScheme = null;
+    }
+
+    // Get user's transactions
+    final userTransactions = _transactions.where((t) => t.userId == user.id).toList();
+    // Sort transactions by date (newest first)
+    userTransactions.sort((a, b) => b.date.compareTo(a.date));
+    final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+    final totalBonus = userTransactions.fold(0.0, (sum, t) => sum + t.interest);
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: bonusAmount > 0 
+                            ? Colors.green.withValues(alpha: 0.1)
+                            : Colors.grey.withValues(alpha: 0.1),
+                        child: Text(
+                          user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                          style: TextStyle(
+                            color: bonusAmount > 0 ? Colors.green : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${user.name} - Profile Details',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            Text(
+                              'Serial: ${user.serialNumber}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            Text(
+                              user.mobileNumber,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Scheme Information
+                if (userScheme != null) ...[
+                  _buildSectionHeader('Scheme Information'),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.savings_rounded,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              userScheme.schemeType.name,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Weekly: ₹${(userScheme.totalAmount / 52).toStringAsFixed(0)} | Total: ₹${userScheme.totalAmount.toStringAsFixed(0)} | Duration: 52 weeks',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // Payment Summary
+                _buildSectionHeader('Payment Summary'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoCard(
+                        'Total Paid',
+                        '₹${totalPaid.toStringAsFixed(2)}',
+                        Icons.payment,
+                        Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildInfoCard(
+                        'Bonus Earned',
+                        '₹${totalBonus.toStringAsFixed(2)}',
+                        Icons.stars,
+                        Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoCard(
+                        'Pending Amount',
+                        userScheme != null 
+                            ? '₹${(userScheme.totalAmount - totalPaid).toStringAsFixed(2)}'
+                            : 'N/A',
+                        Icons.pending,
+                        Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildInfoCard(
+                        'Weeks Completed',
+                        userScheme != null 
+                            ? '${(totalPaid / (userScheme.totalAmount / 52)).floor()} / 52'
+                            : 'N/A',
+                        Icons.calendar_today,
+                        Colors.purple,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Recent Transactions
+                _buildSectionHeader('Recent Transactions'),
+                const SizedBox(height: 12),
+                if (userTransactions.isNotEmpty)
+                  ...userTransactions.take(5).map((transaction) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.receipt,
+                          color: Colors.blue,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '₹${transaction.amount.toStringAsFixed(2)}',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (transaction.interest > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '₹${transaction.interest.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  )).toList()
+                else
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    child: const Center(
+                      child: Text('No transactions found'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.bold,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

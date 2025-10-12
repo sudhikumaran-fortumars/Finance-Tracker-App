@@ -190,8 +190,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                         _buildModernStatCard(
                           context,
-                          'Active Schemes',
-                          '5', // Active schemes count
+                          'Available Schemes',
+                          dataProvider.getDashboardStats()['availableSchemes'].toString(),
                           Icons.savings_rounded,
                           const Color(0xFF10B981),
                           '+8%',
@@ -199,7 +199,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                         _buildModernStatCard(
                           context,
-                          'Total Investment',
+                          'Remaining Amount',
                           Calculations.formatCurrency(
                             dataProvider.getDashboardStats()['totalAmount'],
                           ),
@@ -210,8 +210,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                         _buildModernStatCard(
                           context,
-                          'Pending Dues',
-                          '₹0', // Pending dues
+                          'This Week\'s Collection',
+                          Calculations.formatCurrency(
+                            dataProvider.getDashboardStats()['pendingDues'],
+                          ),
                           Icons.schedule_rounded,
                           const Color(0xFFF59E0B),
                           '-5%',
@@ -220,7 +222,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildModernStatCard(
                           context,
                           'Completed Cycles',
-                          '12', // Completed cycles
+                          dataProvider.getDashboardStats()['completedCycles'].toString(),
                           Icons.check_circle_rounded,
                           const Color(0xFF06B6D4),
                           '+3',

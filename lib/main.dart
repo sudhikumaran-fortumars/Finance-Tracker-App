@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'providers/navigation_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/data_provider.dart';
+import 'screens/splash_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/user_management_screen.dart';
 import 'screens/daily_entry_screen.dart';
@@ -37,7 +40,7 @@ class MyApp extends StatelessWidget {
             themeMode: themeProvider.isDarkMode
                 ? ThemeMode.dark
                 : ThemeMode.light,
-            home: const MainScreen(),
+            home: const SplashScreen(),
           );
         },
       ),
@@ -45,8 +48,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class MainScreen extends StatelessWidget {
-  const MainScreen({super.key});
+class MainApp extends StatelessWidget {
+  const MainApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +72,26 @@ class MainScreen extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'logout') {
+                    await _logout(context);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem<String>(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout_rounded),
+                        SizedBox(width: 8),
+                        Text('Logout'),
+                      ],
+                    ),
+                  ),
+                ],
+                icon: const Icon(Icons.account_circle_rounded),
               ),
             ],
           ),
@@ -424,4 +447,29 @@ class MainScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _logout(BuildContext context) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', false);
+      await prefs.remove('userEmail');
+      
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Logout failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 }
+

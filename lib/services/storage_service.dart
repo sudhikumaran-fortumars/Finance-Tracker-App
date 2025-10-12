@@ -48,118 +48,9 @@ class StorageService {
     ),
   ];
 
-  final List<User> _mockUsers = [
-    User(
-      id: '1',
-      name: 'Rajesh Kumar',
-      mobileNumber: '+91 98765 43210',
-      permanentAddress: Address(
-        doorNumber: '123',
-        street: 'MG Road',
-        area: 'Commercial District',
-        localAddress: 'Near City Mall',
-        city: 'Bangalore',
-        district: 'Bangalore Urban',
-        state: 'Karnataka',
-        pinCode: '560001',
-      ),
-      temporaryAddress: Address(
-        doorNumber: '456',
-        street: 'Brigade Road',
-        area: 'Central Bangalore',
-        localAddress: 'Opposite Metro Station',
-        city: 'Bangalore',
-        district: 'Bangalore Urban',
-        state: 'Karnataka',
-        pinCode: '560025',
-      ),
-      serialNumber: 'c_01',
-      selectedScheme: 'Savings',
-      status: UserStatus.active,
-      createdAt: DateTime(2024, 1, 15),
-      schemes: [],
-    ),
-    User(
-      id: '2',
-      name: 'Priya Sharma',
-      mobileNumber: '+91 87654 32109',
-      permanentAddress: Address(
-        doorNumber: '789',
-        street: 'Anna Salai',
-        area: 'T. Nagar',
-        localAddress: 'Near Phoenix Mall',
-        city: 'Chennai',
-        district: 'Chennai',
-        state: 'Tamil Nadu',
-        pinCode: '600017',
-      ),
-      serialNumber: 'c_02',
-      selectedScheme: 'Gold',
-      status: UserStatus.active,
-      createdAt: DateTime(2024, 2, 20),
-      schemes: [],
-    ),
-    User(
-      id: '3',
-      name: 'Amit Sharma',
-      mobileNumber: '+91 87654 32109',
-      permanentAddress: Address(
-        doorNumber: '789',
-        street: 'Park Street',
-        area: 'Central Kolkata',
-        localAddress: 'Near Victoria Memorial',
-        city: 'Kolkata',
-        district: 'Kolkata',
-        state: 'West Bengal',
-        pinCode: '700016',
-      ),
-      serialNumber: 'c_03',
-      selectedScheme: 'Furniture',
-      status: UserStatus.active,
-      createdAt: DateTime(2024, 3, 10),
-      schemes: [],
-    ),
-  ];
+  final List<User> _mockUsers = [];
 
-  final List<Transaction> _mockTransactions = [
-    Transaction(
-      id: '1',
-      userId: '1',
-      schemeId: '1',
-      amount: 500,
-      date: DateTime(2024, 12, 1),
-      paymentMode: PaymentMode.offline,
-      interest: 1.16,
-      receiptNumber: 'FST241201001',
-      remarks: 'Daily savings deposit',
-    ),
-    Transaction(
-      id: '2',
-      userId: '2',
-      schemeId: '2',
-      amount: 5000,
-      date: DateTime(2024, 12, 2),
-      paymentMode: PaymentMode.upi,
-      //       paymentDetails: PaymentDetails(
-      //         transactionId: 'UPI12345678',
-      //         upiId: 'priya@paytm',
-      //       ),
-      //       interest: 13.97,
-      receiptNumber: 'FST241202002',
-      interest: 13.97,
-    ),
-    Transaction(
-      id: '3',
-      userId: '3',
-      schemeId: '3',
-      amount: 2000,
-      date: DateTime(2024, 12, 3),
-      paymentMode: PaymentMode.offline,
-      interest: 5.48,
-      receiptNumber: 'FST241203003',
-      remarks: 'Furniture scheme deposit',
-    ),
-  ];
+  final List<Transaction> _mockTransactions = [];
 
   // Users
   Future<List<User>> getUsers() async {
@@ -169,7 +60,7 @@ class StorageService {
       final List<dynamic> jsonList = jsonDecode(stored);
       return jsonList.map((json) => User.fromJson(json)).toList();
     }
-    return _mockUsers;
+    return _mockUsers; // Returns empty list
   }
 
   Future<String> generateNextSerialNumber() async {
@@ -286,33 +177,8 @@ class StorageService {
       return jsonList.map((json) => UserScheme.fromJson(json)).toList();
     }
 
-    // Mock user schemes
-    final schemeTypes = await getSchemeTypes();
-    return [
-      UserScheme(
-        id: '1',
-        userId: '1',
-        schemeType: schemeTypes[0],
-        startDate: DateTime(2024, 1, 15),
-        duration: 365,
-        dailyAmount: 500,
-        totalAmount: 182500,
-        interestRate: 8.5,
-        currentBalance: 15000,
-        status: SchemeStatus.active,
-      ),
-      UserScheme(
-        id: '2',
-        userId: '2',
-        schemeType: schemeTypes[1],
-        startDate: DateTime(2024, 2, 20),
-        duration: 365,
-        totalAmount: 60000,
-        interestRate: 10.2,
-        currentBalance: 25000,
-        status: SchemeStatus.active,
-      ),
-    ];
+    // Return empty list - no mock user schemes
+    return [];
   }
 
   Future<void> saveUserScheme(UserScheme scheme) async {
@@ -530,6 +396,15 @@ class StorageService {
       'fst_notification_config',
       jsonEncode(config.toJson()),
     );
+  }
+
+  // Clear all data - for fresh start
+  Future<void> clearAllData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('fst_users');
+    await prefs.remove('fst_transactions');
+    await prefs.remove('fst_user_schemes');
+    await prefs.remove('fst_notifications');
   }
 
 }

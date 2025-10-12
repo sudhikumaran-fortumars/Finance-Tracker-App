@@ -131,8 +131,8 @@ class IndianAddressService {
       'East Sikkim', 'North Sikkim', 'South Sikkim', 'West Sikkim'
     ],
     'Tamil Nadu': [
-      'Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Cuddalore', 'Dharmapuri',
-      'Dindigul', 'Erode', 'Kallakurichi', 'Kanchipuram', 'Karur', 'Krishnagiri',
+      'Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Dharmapuri',
+      'Dindigul', 'Erode', 'Kallakurichi', 'Karur', 'Krishnagiri',
       'Madurai', 'Mayiladuthurai', 'Nagapattinam', 'Namakkal', 'Nilgiris', 'Perambalur',
       'Pudukkottai', 'Ramanathapuram', 'Ranipet', 'Salem', 'Sivaganga', 'Tenkasi',
       'Thanjavur', 'Theni', 'Thoothukudi', 'Tiruchirappalli', 'Tirunelveli', 'Tirupathur',

@@ -303,6 +303,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                Icons.event_available,
+                size: 16,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Ends ${Calculations.formatDate(user.createdAt.add(const Duration(days: 364)))}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -333,6 +350,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void _showAddUserDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => _UserFormDialog(
         onSave: (user) async {
           await _storageService.saveUser(user);
@@ -386,7 +404,6 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   final _stateController = TextEditingController();
   final _pinCodeController = TextEditingController();
   final _amountController = TextEditingController();
-  final _durationController = TextEditingController();
   bool _isLoading = false;
   String? _nextCustomerNumber;
   SchemeType? _selectedScheme;
@@ -488,24 +505,14 @@ class _UserFormDialogState extends State<_UserFormDialog> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Dialog(
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.9,
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.user == null ? 'Add New User' : 'Edit User',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.grey[100] : Colors.grey[900],
-                ),
-              ),
-              const SizedBox(height: 24),
+    return AlertDialog(
+      title: Text(widget.user == null ? 'Add New User' : 'Edit User'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               // Show next customer number for new users
               if (widget.user == null && _nextCustomerNumber != null)
                 Container(
@@ -594,15 +601,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                             child: TextFormField(
                               controller: _doorNumberController,
                               decoration: const InputDecoration(
-                                labelText: 'Door Number *',
+                                labelText: 'Door Number',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Door number is required';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -610,15 +611,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                             child: TextFormField(
                               controller: _streetController,
                               decoration: const InputDecoration(
-                                labelText: 'Street *',
+                                labelText: 'Street',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Street is required';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                         ],
@@ -630,15 +625,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                             child: TextFormField(
                               controller: _areaController,
                               decoration: const InputDecoration(
-                                labelText: 'Area *',
+                                labelText: 'Area',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Area is required';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -658,7 +647,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                       DropdownButtonFormField<String>(
                         initialValue: _selectedState,
                         decoration: const InputDecoration(
-                          labelText: 'State *',
+                          labelText: 'State',
                           border: OutlineInputBorder(),
                         ),
                         items: _availableStates.map((state) {
@@ -668,19 +657,13 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                           );
                         }).toList(),
                         onChanged: _onStateChanged,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'State is required';
-                          }
-                          return null;
-                        },
                       ),
                       const SizedBox(height: 16),
                       // District Selection
                       DropdownButtonFormField<String>(
                         initialValue: _selectedDistrict,
                         decoration: const InputDecoration(
-                          labelText: 'District *',
+                          labelText: 'District',
                           border: OutlineInputBorder(),
                         ),
                         items: _availableDistricts.map((district) {
@@ -690,12 +673,6 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                           );
                         }).toList(),
                         onChanged: _onDistrictChanged,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'District is required';
-                          }
-                          return null;
-                        },
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -704,15 +681,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                             child: TextFormField(
                               controller: _cityController,
                               decoration: const InputDecoration(
-                                labelText: 'City *',
+                                labelText: 'City',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'City is required';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -720,15 +691,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                             child: TextFormField(
                               controller: _areaController,
                               decoration: const InputDecoration(
-                                labelText: 'Area *',
+                                labelText: 'Area',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Area is required';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                         ],
@@ -738,19 +703,10 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                       TextFormField(
                         controller: _pinCodeController,
                         decoration: const InputDecoration(
-                          labelText: 'PIN Code *',
+                          labelText: 'PIN Code',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'PIN code is required';
-                          }
-                          if (value.length != 6) {
-                            return 'PIN code must be 6 digits';
-                          }
-                          return null;
-                        },
                       ),
                     ],
                   ),
@@ -793,70 +749,88 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                   validator: _assignScheme ? (value) => value == null ? 'Please select a scheme' : null : null,
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _amountController,
-                        decoration: const InputDecoration(
-                          labelText: 'Amount (₹)',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: _assignScheme ? (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Amount is required';
-                          }
-                          if (double.tryParse(value) == null) {
-                            return 'Please enter a valid amount';
-                          }
-                          return null;
-                        } : null,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _durationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Duration (weeks)',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: _assignScheme ? (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Duration is required';
-                          }
-                          if (int.tryParse(value) == null) {
-                            return 'Please enter a valid duration';
-                          }
-                          return null;
-                        } : null,
-                      ),
-                    ),
-                  ],
+                TextFormField(
+                  controller: _amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'Weekly Amount (₹)',
+                    hintText: 'Enter weekly contribution amount',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    setState(() {
+                      // Trigger rebuild to update total amount display
+                    });
+                  },
+                  validator: _assignScheme ? (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Weekly amount is required';
+                    }
+                    if (double.tryParse(value) == null) {
+                      return 'Please enter a valid amount';
+                    }
+                    return null;
+                  } : null,
                 ),
+                const SizedBox(height: 12),
+                if (_assignScheme && _amountController.text.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calculate,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Total Amount (52 weeks)',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                '₹${_calculateTotalAmount()}',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ButtonWidget(
-                    text: widget.user == null ? 'Add User' : 'Update User',
-                    isLoading: _isLoading,
-                    onPressed: _saveUser,
-                  ),
-                ],
-              ),
-            ],
-          ),
+          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ButtonWidget(
+          text: widget.user == null ? 'Add User' : 'Update User',
+          isLoading: _isLoading,
+          onPressed: _saveUser,
+        ),
+      ],
     );
   }
 
@@ -871,6 +845,15 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         color: isDark ? Colors.grey[200] : Colors.grey[800],
       ),
     );
+  }
+
+  String _calculateTotalAmount() {
+    final weeklyAmount = double.tryParse(_amountController.text);
+    if (weeklyAmount == null || weeklyAmount <= 0) {
+      return '0';
+    }
+    final totalAmount = weeklyAmount * 52;
+    return totalAmount.toStringAsFixed(0);
   }
 
   late final List<SchemeType> _availableSchemes = [
@@ -944,13 +927,13 @@ class _UserFormDialogState extends State<_UserFormDialog> {
       );
 
       // Save user first
-      widget.onSave(user);
+      await widget.onSave(user);
 
       // Assign scheme if selected
       if (_assignScheme && _selectedScheme != null) {
-        final amount = double.parse(_amountController.text);
-        final durationWeeks = int.parse(_durationController.text);
-        final durationDays = durationWeeks * 7;
+        final weeklyAmount = double.parse(_amountController.text);
+        final totalAmount = weeklyAmount * 52; // Fixed 52 weeks for all schemes
+        final durationDays = 52 * 7; // 52 weeks = 364 days
 
         final userScheme = UserScheme(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -958,7 +941,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
           schemeType: _selectedScheme!,
           startDate: DateTime.now(),
           duration: durationDays,
-          totalAmount: amount,
+          totalAmount: totalAmount,
           interestRate: _selectedScheme!.interestRate,
           currentBalance: 0.0,
           status: SchemeStatus.active,
@@ -978,6 +961,15 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                   : 'User created successfully',
             ),
             backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving user: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -1089,6 +1081,11 @@ class _UserDetailsDialog extends StatelessWidget {
               context,
               'Joined Date',
               Calculations.formatDate(user.createdAt),
+            ),
+            _buildDetailRow(
+              context,
+              'End Date',
+              Calculations.formatDate(user.createdAt.add(const Duration(days: 364))), // 52 weeks = 364 days
             ),
             const SizedBox(height: 24),
             Row(

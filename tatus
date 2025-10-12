@@ -1,0 +1,30 @@
+warning: in the working copy of 'lib/main.dart', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/lib/main.dart b/lib/main.dart[m
+[1mindex dd40010..ce09489 100644[m
+[1m--- a/lib/main.dart[m
+[1m+++ b/lib/main.dart[m
+[36m@@ -37,7 +37,7 @@[m [mclass MyApp extends StatelessWidget {[m
+             themeMode: themeProvider.isDarkMode[m
+                 ? ThemeMode.dark[m
+                 : ThemeMode.light,[m
+[31m-            home: const MainScreen(),[m
+[32m+[m[32m            home: const MainApp(),[m
+           );[m
+         },[m
+       ),[m
+[36m@@ -45,8 +45,8 @@[m [mclass MyApp extends StatelessWidget {[m
+   }[m
+ }[m
+ [m
+[31m-class MainScreen extends StatelessWidget {[m
+[31m-  const MainScreen({super.key});[m
+[32m+[m[32mclass MainApp extends StatelessWidget {[m
+[32m+[m[32m  const MainApp({super.key});[m
+ [m
+   @override[m
+   Widget build(BuildContext context) {[m
+[36m@@ -425,3 +425,4 @@[m [mclass MainScreen extends StatelessWidget {[m
+     );[m
+   }[m
+ }[m
+[41m+[m

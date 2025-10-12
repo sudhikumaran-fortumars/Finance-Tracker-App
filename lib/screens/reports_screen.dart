@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../models/address.dart';
 import '../models/transaction.dart';
+import '../models/user_scheme.dart';
 import '../services/storage_service.dart';
+import '../services/pdf_service.dart';
 import '../widgets/common/card_widget.dart';
 import '../widgets/charts/bar_chart_widget.dart';
 import '../widgets/charts/doughnut_chart_widget.dart';
@@ -22,6 +24,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   String _selectedClient = 'all';
   List<User> _users = [];
   List<Transaction> _transactions = [];
+  List<UserScheme> _userSchemes = [];
   bool _isLoading = true;
   DateTimeRange? _selectedDateRange;
 
@@ -44,11 +47,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
     try {
       final users = await _storageService.getUsers();
       final transactions = await _storageService.getTransactions();
+      final userSchemes = await _storageService.getUserSchemes();
 
       if (mounted) {
       setState(() {
         _users = users;
         _transactions = transactions;
+        _userSchemes = userSchemes;
         _isLoading = false;
       });
       _calculateAnalytics();
@@ -59,6 +64,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           _isLoading = false;
           _users = [];
           _transactions = [];
+          _userSchemes = [];
         });
       }
     }
@@ -781,53 +787,41 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  void _exportReport() {
-    final transactions = _getFilteredTransactions();
-    final report = StringBuffer();
-    
-    report.writeln('Financial Report');
-    report.writeln('Generated: ${DateTime.now()}');
-    report.writeln('Period: $_selectedPeriod');
-    report.writeln('Client: ${_getSelectedClientName()}');
-    report.writeln('');
-    report.writeln('Summary:');
-    report.writeln('Total Amount: ₹${_totalAmount.toStringAsFixed(2)}');
-    report.writeln('Total Transactions: $_totalTransactions');
-    report.writeln('Average Amount: ₹${_averageAmount.toStringAsFixed(2)}');
-    report.writeln('');
-    report.writeln('Transactions:');
-    
-    for (var transaction in transactions) {
-      final user = _users.firstWhere(
-        (u) => u.id == transaction.userId,
-        orElse: () => User(
-          id: 'unknown',
-          name: 'Unknown User',
-          mobileNumber: '0000000000',
-          serialNumber: '000',
-          status: UserStatus.active,
-          createdAt: DateTime.now(),
-          schemes: [],
-          permanentAddress: Address(
-            doorNumber: '0',
-            street: 'Unknown',
-            area: 'Unknown',
-            localAddress: 'Unknown',
-            city: 'Unknown',
-            district: 'Unknown',
-            state: 'Unknown',
-            pinCode: '000000',
-          ),
-        ),
+  Future<void> _exportReport() async {
+    try {
+      final transactions = _getFilteredTransactions();
+      final reportType = _getSelectedClientName() == 'All Clients' ? 'General' : _getSelectedClientName();
+      final period = _selectedDateRange != null 
+          ? '${_selectedDateRange!.start.toString().split(' ')[0]} to ${_selectedDateRange!.end.toString().split(' ')[0]}'
+          : _selectedPeriod;
+      
+      await PdfService.generateReport(
+        users: _users,
+        transactions: transactions,
+        userSchemes: _userSchemes,
+        reportType: reportType,
+        period: period,
+        dateRange: _selectedDateRange,
       );
       
-      report.writeln('${transaction.date.day}/${transaction.date.month}/${transaction.date.year} - ${user.name} - ₹${transaction.amount.toStringAsFixed(2)}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF report generated and saved successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
-    
-    Clipboard.setData(ClipboardData(text: report.toString()));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Report copied to clipboard')),
-    );
   }
 
   void _printReport() {

@@ -54,8 +54,10 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final userSchemes = await _storageService.getUserSchemes();
-      final transactions = await _storageService.getTransactions();
+      // Get data from DataProvider instead of directly from storage
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      final transactions = dataProvider.transactions;
       
       if (mounted) {
         setState(() {
@@ -102,12 +104,165 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       final userTransactions = transactions.where((t) => t.userId == userId).toList();
       final paidAmount = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
       
-      // Calculate bonus (5₹ per 100₹)
-      final bonus = (paidAmount / 100).floor() * 5.0;
+      // Calculate bonus from actual transaction bonus amounts
+      final bonus = userTransactions.fold(0.0, (sum, t) => sum + t.interest);
       
       _userPaidAmounts[userId] = paidAmount;
       _userPendingAmounts[userId] = totalAmount - paidAmount;
       _userBonuses[userId] = bonus;
+    }
+  }
+
+  void _autoFillWeeklyAmount(User user) {
+    try {
+      // Get user schemes from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      
+      // Find user's scheme to get weekly amount
+      UserScheme? userScheme;
+      try {
+        userScheme = userSchemes.firstWhere(
+          (scheme) => scheme.userId == user.id,
+        );
+      } catch (e) {
+        userScheme = null;
+      }
+      
+      if (userScheme == null) {
+        // No scheme found, don't auto-fill
+        return;
+      }
+      
+      // Calculate weekly amount from total amount (total / 52 weeks)
+      final weeklyAmount = userScheme.totalAmount / 52;
+      
+      // Calculate overdue amount
+      final overdueAmount = _calculateOverdueAmount(user.id);
+      
+      // Total amount = weekly amount + overdue amount
+      final totalAmount = weeklyAmount + overdueAmount;
+      
+      if (totalAmount > 0 && mounted) {
+        _amountController.text = totalAmount.toStringAsFixed(0);
+      }
+    } catch (e) {
+      // Handle any errors silently to prevent rendering issues
+    }
+  }
+
+  double _calculateOverdueAmount(String userId) {
+    try {
+      // Get user schemes from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      
+      UserScheme? userScheme;
+      try {
+        userScheme = userSchemes.firstWhere(
+          (scheme) => scheme.userId == userId,
+        );
+      } catch (e) {
+        userScheme = null;
+      }
+      
+      if (userScheme == null) return 0.0;
+      
+      final joiningDate = userScheme.startDate;
+      final now = DateTime.now();
+      final daysSinceJoining = now.difference(joiningDate).inDays;
+      final weeklyAmount = userScheme.totalAmount / 52;
+      
+      // Calculate current week number
+      final currentWeek = (daysSinceJoining / 7).floor();
+      
+      // Get all transactions for this user from the provider
+      final allTransactions = Provider.of<DataProvider>(context, listen: false).transactions;
+      final userTransactions = allTransactions.where((t) => t.userId == userId).toList();
+      
+      // Calculate how many weeks have passed since joining
+      final weeksPassed = currentWeek + 1;
+      
+      // Calculate how many payments should have been made
+      // Only consider a week overdue if it's been more than 7 days since the week started
+      final expectedPayments = weeksPassed;
+      
+      // Calculate how many payments have actually been made
+      final actualPayments = userTransactions.length;
+      
+      // Calculate overdue weeks - only if the current week is more than 7 days old
+      int overdueWeeks = 0;
+      
+      // Check each week to see if it's overdue
+      for (int week = 0; week < weeksPassed; week++) {
+        final weekStartDate = joiningDate.add(Duration(days: week * 7));
+        final weekEndDate = weekStartDate.add(const Duration(days: 6));
+        final daysSinceWeekEnd = now.difference(weekEndDate).inDays;
+        
+        // A week is overdue only if it's been more than 7 days since the week ended
+        if (daysSinceWeekEnd > 7) {
+          // Check if payment was made for this week
+          final hasPaymentForWeek = userTransactions.any((transaction) {
+            final transactionDate = transaction.date;
+            return transactionDate.isAfter(weekStartDate.subtract(const Duration(days: 1))) &&
+                   transactionDate.isBefore(weekEndDate.add(const Duration(days: 1)));
+          });
+          
+          if (!hasPaymentForWeek) {
+            overdueWeeks++;
+          }
+        }
+      }
+      
+      
+      // Return overdue amount (overdue weeks * weekly amount)
+      return overdueWeeks > 0 ? overdueWeeks * weeklyAmount : 0.0;
+      
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  DateTime? _calculateNextDueDate(String userId) {
+    try {
+      // Get user schemes from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      
+      UserScheme? userScheme;
+      try {
+        userScheme = userSchemes.firstWhere(
+          (scheme) => scheme.userId == userId,
+        );
+      } catch (e) {
+        userScheme = null;
+      }
+      
+      if (userScheme == null) return null;
+      
+      final joiningDate = userScheme.startDate;
+      final now = DateTime.now();
+      final daysSinceJoining = now.difference(joiningDate).inDays;
+      
+      // Calculate current week number
+      final currentWeek = (daysSinceJoining / 7).floor();
+      
+      // Calculate next week start date
+      final nextWeekStart = joiningDate.add(Duration(days: (currentWeek + 1) * 7));
+      
+      // If we're still in the current week, return current week's due date
+      final currentWeekStart = joiningDate.add(Duration(days: currentWeek * 7));
+      final currentWeekEnd = currentWeekStart.add(const Duration(days: 6));
+      
+      if (now.isBefore(currentWeekEnd.add(const Duration(days: 1)))) {
+        // Still in current week, return current week's due date
+        return currentWeekEnd;
+      } else {
+        // Current week is over, return next week's due date
+        return nextWeekStart.add(const Duration(days: 6));
+      }
+    } catch (e) {
+      return null;
     }
   }
 
@@ -132,7 +287,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       final amount = double.parse(_amountController.text);
       
       // Calculate bonus based on 7-day rule
-      final bonus = _calculateBonus(amount, _selectedDate);
+      final bonus = await _calculateBonus(amount, _selectedDate);
 
       // Create new transaction
       final transaction = Transaction(
@@ -653,6 +808,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           _filteredUsers.clear();
           _searchQuery = '';
         });
+        
+        // Auto-fill weekly amount from user's scheme (outside setState)
+        _autoFillWeeklyAmount(user);
       },
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -1123,6 +1281,94 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          // Overdue Amount Indicator
+          if (_calculateOverdueAmount(userId) > 0)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.red.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Overdue Amount',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          '₹${_calculateOverdueAmount(userId).toStringAsFixed(0)}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+          // Next Due Date
+          if (_calculateNextDueDate(userId) != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.blue.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.schedule,
+                    color: Colors.blue,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Next Due Date',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          Calculations.formatDate(_calculateNextDueDate(userId)!),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -1225,7 +1471,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                   ),
                 ),
                 Text(
-                  'Amount: ₹${userScheme.totalAmount.toStringAsFixed(2)} | Duration: ${(userScheme.duration / 7).round()} weeks',
+                  'Weekly: ₹${(userScheme.totalAmount / 52).toStringAsFixed(0)} | Total: ₹${userScheme.totalAmount.toStringAsFixed(0)} | Duration: 52 weeks',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
@@ -1274,17 +1520,46 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
     );
   }
 
-  /// Calculate bonus based on 7-day rule
-  double _calculateBonus(double amount, DateTime paymentDate) {
-    final now = DateTime.now();
-    final daysDifference = now.difference(paymentDate).inDays;
+  /// Calculate bonus based on payment timing and user joining date
+  Future<double> _calculateBonus(double amount, DateTime paymentDate) async {
+    if (_selectedUser == null) return 0.0;
     
-    // If payment is within 7 days (on or before 7th day), give 5% bonus
-    if (daysDifference <= 7) {
-      return amount * 0.05; // 5% bonus
+    try {
+      // Get user's scheme from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      
+      UserScheme? userScheme;
+      try {
+        userScheme = userSchemes.firstWhere(
+          (scheme) => scheme.userId == _selectedUser!.id,
+        );
+      } catch (e) {
+        userScheme = null;
+      }
+      
+      if (userScheme == null) return 0.0;
+      
+      final joiningDate = userScheme.startDate;
+      final daysSinceJoining = paymentDate.difference(joiningDate).inDays;
+      
+      
+      // Calculate which week this payment is for
+      final weekNumber = (daysSinceJoining / 7).floor();
+      final weekStartDate = joiningDate.add(Duration(days: weekNumber * 7));
+      final daysFromWeekStart = paymentDate.difference(weekStartDate).inDays;
+      
+      
+      // Check if payment is within 7 days of current week start
+      if (daysFromWeekStart <= 7) {
+        // Payment is within 7 days of current week start - give bonus
+        return 5.0;
+      } else {
+        // Payment is overdue for current week - no bonus
+        return 0.0;
+      }
+    } catch (e) {
+      return 0.0;
     }
-    
-    // If payment is after 7 days, no bonus
-    return 0.0;
   }
 }
