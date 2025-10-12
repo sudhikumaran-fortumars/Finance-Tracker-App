@@ -318,13 +318,12 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         await _storageService.saveUserScheme(updatedScheme);
 
         // Update local state without reloading
-        final transactions = await _storageService.getTransactions();
         setState(() {
           final index = _userSchemes.indexWhere((s) => s.id == userScheme.id);
           if (index != -1) {
             _userSchemes[index] = updatedScheme;
           }
-          _calculateUserAmounts(transactions);
+          _calculateUserAmounts(dataProvider.transactions);
         });
 
         // Clear form
