@@ -1552,8 +1552,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       
       // Check if payment is within 7 days of current week start
       if (daysFromWeekStart <= 7) {
-        // Payment is within 7 days of current week start - give bonus
-        return 5.0;
+        // Payment is within 7 days of current week start - give 5% bonus
+        // 100 Rs = 5 Rs bonus, 200 Rs = 10 Rs bonus, 300 Rs = 15 Rs bonus, etc.
+        return amount * 0.05; // 5% of the payment amount
       } else {
         // Payment is overdue for current week - no bonus
         return 0.0;
