@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../models/address.dart';
 import '../models/transaction.dart';
 import '../models/user_scheme.dart';
 import '../services/storage_service.dart';
 import '../widgets/common/card_widget.dart';
+import '../providers/data_provider.dart';
 
 class BonusScreen extends StatefulWidget {
   const BonusScreen({super.key});
@@ -30,8 +32,9 @@ class _BonusScreenState extends State<BonusScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final users = await _storageService.getUsers();
-      final transactions = await _storageService.getTransactions();
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final users = dataProvider.users;
+      final transactions = dataProvider.transactions;
 
       setState(() {
         _users = users;
@@ -123,49 +126,55 @@ class _BonusScreenState extends State<BonusScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Total Bonus Summary
-            CardWidget(
-              title: 'Bonus Summary',
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          'Total Bonus Paid',
-                          '₹${clientBonuses.values.fold(0.0, (sum, bonus) => sum + bonus).toStringAsFixed(2)}',
-                          Icons.account_balance_wallet,
-                          Colors.green,
+            // Show different content based on client selection
+            if (_selectedClient == 'all') ...[
+              // Total Bonus Summary for All Clients
+              CardWidget(
+                title: 'Bonus Summary',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            'Total Bonus Paid',
+                            '₹${clientBonuses.values.fold(0.0, (sum, bonus) => sum + bonus).toStringAsFixed(2)}',
+                            Icons.account_balance_wallet,
+                            Colors.green,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildStatCard(
-                          'Clients with Bonus',
-                          '${clientBonuses.length}',
-                          Icons.people,
-                          Colors.blue,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Clients with Bonus',
+                            '${clientBonuses.length}',
+                            Icons.people,
+                            Colors.blue,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // All Clients with Bonuses
-            CardWidget(
-              title: 'All Clients & Their Bonuses',
-              child: _buildAllClientsList(clientBonuses),
-            ),
-            const SizedBox(height: 16),
+              // All Clients with Bonuses
+              CardWidget(
+                title: 'All Clients & Their Bonuses',
+                child: _buildAllClientsList(clientBonuses),
+              ),
+              const SizedBox(height: 16),
 
-            // Bonus Transactions
-            CardWidget(
-              title: 'Bonus Transactions',
-              child: _buildBonusTransactionsList(filteredTransactions),
-            ),
+              // Bonus Transactions
+              CardWidget(
+                title: 'Bonus Transactions',
+                child: _buildBonusTransactionsList(filteredTransactions),
+              ),
+            ] else ...[
+              // Client-specific dashboard
+              _buildClientDashboard(),
+            ],
           ],
         ),
       ),
@@ -835,6 +844,210 @@ class _BonusScreenState extends State<BonusScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildClientDashboard() {
+    final selectedUser = _users.firstWhere((user) => user.id == _selectedClient);
+    final clientBonuses = _getClientBonuses();
+    final userBonus = clientBonuses[_selectedClient] ?? 0.0;
+    final userTransactions = _transactions.where((t) => t.userId == _selectedClient).toList();
+    final bonusTransactions = userTransactions.where((t) => t.interest > 0).toList();
+    final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+    
+    // Get user scheme information
+    final dataProvider = Provider.of<DataProvider>(context, listen: false);
+    final userSchemes = dataProvider.userSchemes;
+    UserScheme? userScheme;
+    try {
+      userScheme = userSchemes.firstWhere((scheme) => scheme.userId == _selectedClient);
+    } catch (e) {
+      userScheme = null;
+    }
+
+    return Column(
+      children: [
+        // Client Header
+        CardWidget(
+          title: 'Client Information',
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                  child: Text(
+                    selectedUser.name.isNotEmpty ? selectedUser.name[0].toUpperCase() : 'U',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        selectedUser.name,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Serial: ${selectedUser.serialNumber}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      Text(
+                        'Mobile: ${selectedUser.mobileNumber}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: () => _showGiveBonusDialog(selectedUserId: selectedUser.id),
+                  tooltip: 'Give Bonus',
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Bonus Statistics
+        CardWidget(
+          title: 'Bonus Statistics',
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      'Total Bonus Earned',
+                      '₹${userBonus.toStringAsFixed(2)}',
+                      Icons.account_balance_wallet,
+                      Colors.green,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Bonus Transactions',
+                      '${bonusTransactions.length}',
+                      Icons.receipt_long,
+                      Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      'Total Amount Paid',
+                      '₹${totalPaid.toStringAsFixed(2)}',
+                      Icons.payment,
+                      Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Scheme Status',
+                      userScheme?.status.toString().split('.').last ?? 'N/A',
+                      Icons.schema,
+                      Colors.purple,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Scheme Information
+        if (userScheme != null)
+          CardWidget(
+            title: 'Scheme Details',
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInfoCard(
+                          'Scheme Type',
+                          userScheme.schemeType.name,
+                          Icons.schema,
+                          Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildInfoCard(
+                          'Total Amount',
+                          '₹${userScheme.totalAmount.toStringAsFixed(2)}',
+                          Icons.account_balance,
+                          Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInfoCard(
+                          'Start Date',
+                          '${userScheme.startDate.day}/${userScheme.startDate.month}/${userScheme.startDate.year}',
+                          Icons.calendar_today,
+                          Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildInfoCard(
+                          'Weekly Amount',
+                          '₹${(userScheme.totalAmount / 52).toStringAsFixed(2)}',
+                          Icons.schedule,
+                          Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: 16),
+
+        // Recent Bonus Transactions
+        CardWidget(
+          title: 'Recent Bonus Transactions',
+          child: _buildBonusTransactionsList(bonusTransactions),
+        ),
+      ],
     );
   }
 }
