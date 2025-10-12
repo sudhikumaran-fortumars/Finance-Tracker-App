@@ -37,6 +37,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<User> _filteredUsers = [];
   String _searchQuery = '';
+  
+  // Loading state to prevent double submissions
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -275,6 +278,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
   }
 
   Future<void> _saveTransaction() async {
+    // Prevent double submissions
+    if (_isSaving) return;
+    
     if (_formKey.currentState!.validate()) {
       if (_selectedUser == null) {
         ScaffoldMessenger.of(
@@ -283,28 +289,32 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         return;
       }
 
-      final dataProvider = context.read<DataProvider>();
-      final amount = double.parse(_amountController.text);
-      
-      // Calculate bonus based on 7-day rule
-      final bonus = await _calculateBonus(amount, _selectedDate);
-
-      // Create new transaction
-      final transaction = Transaction(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        userId: _selectedUser!.id,
-        schemeId: '1', // Default scheme ID
-        amount: amount,
-        paymentMode: _paymentMode,
-        date: _selectedDate,
-        interest: bonus, // Store bonus in interest field
-        remarks: _remarksController.text.isNotEmpty
-            ? _remarksController.text
-            : null,
-        receiptNumber: 'RCP${DateTime.now().millisecondsSinceEpoch}',
-      );
+      setState(() {
+        _isSaving = true;
+      });
 
       try {
+        final dataProvider = context.read<DataProvider>();
+        final amount = double.parse(_amountController.text);
+        
+        // Calculate bonus based on 7-day rule
+        final bonus = await _calculateBonus(amount, _selectedDate);
+
+        // Create new transaction
+        final transaction = Transaction(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          userId: _selectedUser!.id,
+          schemeId: '1', // Default scheme ID
+          amount: amount,
+          paymentMode: _paymentMode,
+          date: _selectedDate,
+          interest: bonus, // Store bonus in interest field
+          remarks: _remarksController.text.isNotEmpty
+              ? _remarksController.text
+              : null,
+          receiptNumber: 'RCP${DateTime.now().millisecondsSinceEpoch}',
+        );
+
         await dataProvider.addTransaction(transaction);
 
         // Find and update user scheme balance
@@ -332,6 +342,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         setState(() {
           _selectedUser = null;
           _selectedDate = DateTime.now();
+          _isSaving = false; // Reset loading state
         });
 
         if (mounted) {
@@ -343,6 +354,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           );
         }
       } catch (e) {
+        setState(() {
+          _isSaving = false; // Reset loading state on error
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error saving transaction: $e')),
@@ -501,9 +515,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                                     SizedBox(
                                       width: double.infinity,
                                       child: ButtonWidget(
-                                        text: 'Done',
-                                        icon: Icons.check_rounded,
-                                        onPressed: _saveTransaction,
+                                        text: _isSaving ? 'Saving...' : 'Done',
+                                        icon: _isSaving ? Icons.hourglass_empty : Icons.check_rounded,
+                                        onPressed: _isSaving ? null : _saveTransaction,
                                       ),
                                     ),
                                   ],
