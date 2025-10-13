@@ -40,6 +40,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
   
   // Loading state to prevent double submissions
   bool _isSaving = false;
+  
+  // Track processed transaction IDs to prevent duplicates
+  final Set<String> _processedTransactionIds = {};
 
   @override
   void initState() {
@@ -300,9 +303,22 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         // Calculate bonus based on 7-day rule
         final bonus = await _calculateBonus(amount, _selectedDate);
 
-        // Create new transaction
+        // Create new transaction with unique ID
+        final transactionId = DateTime.now().millisecondsSinceEpoch.toString();
+        
+        // Check if this transaction ID has already been processed
+        if (_processedTransactionIds.contains(transactionId)) {
+          setState(() {
+            _isSaving = false;
+          });
+          return;
+        }
+        
+        // Mark this transaction ID as being processed
+        _processedTransactionIds.add(transactionId);
+        
         final transaction = Transaction(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: transactionId,
           userId: _selectedUser!.id,
           schemeId: '1', // Default scheme ID
           amount: amount,
@@ -312,7 +328,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           remarks: _remarksController.text.isNotEmpty
               ? _remarksController.text
               : null,
-          receiptNumber: 'RCP${DateTime.now().millisecondsSinceEpoch}',
+          receiptNumber: 'RCP$transactionId',
         );
 
         await dataProvider.addTransaction(transaction);

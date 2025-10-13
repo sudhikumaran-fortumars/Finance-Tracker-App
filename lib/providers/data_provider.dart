@@ -102,6 +102,12 @@ class DataProvider extends ChangeNotifier {
   // Add new transaction
   Future<void> addTransaction(Transaction transaction) async {
     try {
+      // Check if transaction already exists to prevent duplicates
+      final existingTransaction = _transactions.any((t) => t.id == transaction.id);
+      if (existingTransaction) {
+        return; // Transaction already exists, don't add duplicate
+      }
+      
       await _storageService.saveTransaction(transaction);
       _transactions.add(transaction);
       notifyListeners();

@@ -122,6 +122,13 @@ class StorageService {
 
   Future<void> saveTransaction(Transaction transaction) async {
     final transactions = await getTransactions();
+    
+    // Check if transaction already exists to prevent duplicates
+    final existingTransaction = transactions.any((t) => t.id == transaction.id);
+    if (existingTransaction) {
+      return; // Transaction already exists, don't save duplicate
+    }
+    
     transactions.add(transaction);
 
     final prefs = await SharedPreferences.getInstance();
