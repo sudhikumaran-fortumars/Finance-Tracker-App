@@ -231,8 +231,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         final weekEndDate = weekStartDate.add(const Duration(days: 6));
         final daysSinceWeekEnd = now.difference(weekEndDate).inDays;
         
-        // A week is overdue if it's been more than 7 days since the week ended
-        if (daysSinceWeekEnd > 7) {
+        // A week is overdue if it's been more than 0 days since the week ended (immediately overdue)
+        if (daysSinceWeekEnd >= 0) {
           // Check if payment was made for this week
           final hasPaymentForWeek = userTransactions.any((transaction) {
             final transactionDate = transaction.date;
@@ -242,6 +242,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           
           if (!hasPaymentForWeek) {
             overdueAmount += weeklyAmount;
+            print('DEBUG: Week $week is overdue - adding ₹${weeklyAmount.toStringAsFixed(0)}');
           }
         }
       }
@@ -1335,49 +1336,76 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // Overdue Amount Indicator
-          if (_calculateOverdueAmount(userId) > 0)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.red.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.warning,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Overdue Amount',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          '₹${_calculateOverdueAmount(userId).toStringAsFixed(0)}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+          // Payment Breakdown
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
               ),
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Payment Breakdown',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildBreakdownItem(
+                        'Current Week',
+                        '₹${(userScheme?.totalAmount ?? 0) / 52}',
+                        Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildBreakdownItem(
+                        'Overdue',
+                        '₹${_calculateOverdueAmount(userId).toStringAsFixed(0)}',
+                        _calculateOverdueAmount(userId) > 0 ? Colors.red : Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total Amount',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      Text(
+                        '₹${((userScheme?.totalAmount ?? 0) / 52 + _calculateOverdueAmount(userId)).toStringAsFixed(0)}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 8),
           // Next Due Date
           if (_calculateNextDueDate(userId) != null)
@@ -1567,6 +1595,39 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownItem(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
         ],
       ),
