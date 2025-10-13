@@ -221,7 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                         _buildModernStatCard(
                           context,
-                          'Completed Cycles',
+                          'Completed Schemes',
                           dataProvider.getDashboardStats()['completedCycles'].toString(),
                           Icons.check_circle_rounded,
                           const Color(0xFF06B6D4),

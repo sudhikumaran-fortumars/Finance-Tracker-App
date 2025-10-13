@@ -231,20 +231,21 @@ class DataProvider extends ChangeNotifier {
       thisWeekCollectable = 0.0;
     }
 
-    // Calculate completed cycles (users who have completed all 52 weeks)
+    // Calculate completed cycles (users who have collected their full scheme amount)
     int completedCycles = 0;
     try {
       for (final user in _users) {
         final userSchemes = _userSchemes.where((scheme) => scheme.userId == user.id);
         if (userSchemes.isNotEmpty) {
           final userScheme = userSchemes.first;
-          final joiningDate = userScheme.startDate;
-          final now = DateTime.now();
-          final daysSinceJoining = now.difference(joiningDate).inDays;
-          final weeksCompleted = (daysSinceJoining / 7).floor();
+          final totalSchemeAmount = userScheme.totalAmount;
           
-          // Check if user has completed all 52 weeks
-          if (weeksCompleted >= 52) {
+          // Get all transactions for this user
+          final userTransactions = _transactions.where((t) => t.userId == user.id).toList();
+          final totalCollected = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+          
+          // Check if user has collected their full scheme amount
+          if (totalCollected >= totalSchemeAmount) {
             completedCycles++;
           }
         }
