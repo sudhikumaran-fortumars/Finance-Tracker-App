@@ -146,6 +146,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       // Calculate overdue amount
       final overdueAmount = _calculateOverdueAmount(user.id);
       
+      // Debug: Print overdue calculation
+      print('DEBUG: User ${user.name} - Weekly: ₹${weeklyAmount.toStringAsFixed(0)}, Overdue: ₹${overdueAmount.toStringAsFixed(0)}');
+      
       // Total amount = weekly amount + overdue amount
       final totalAmount = weeklyAmount + overdueAmount;
       
@@ -160,6 +163,17 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                 'Auto-filled: ₹${weeklyAmount.toStringAsFixed(0)} (current week) + ₹${overdueAmount.toStringAsFixed(0)} (overdue) = ₹${totalAmount.toStringAsFixed(0)}',
               ),
               backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        } else {
+          // Show current week amount only
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Auto-filled: ₹${weeklyAmount.toStringAsFixed(0)} (current week)',
+              ),
+              backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
           );
@@ -201,6 +215,15 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       
       // Calculate overdue amount
       double overdueAmount = 0.0;
+      
+      // Debug: Print calculation details
+      print('DEBUG: Overdue calculation for user $userId');
+      print('DEBUG: Joining date: $joiningDate');
+      print('DEBUG: Current date: $now');
+      print('DEBUG: Days since joining: $daysSinceJoining');
+      print('DEBUG: Weeks passed: $weeksPassed');
+      print('DEBUG: Weekly amount: ₹${weeklyAmount.toStringAsFixed(0)}');
+      print('DEBUG: User transactions: ${userTransactions.length}');
       
       // Check each week to see if payment is missing
       for (int week = 0; week < weeksPassed; week++) {
