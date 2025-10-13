@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../models/transaction.dart';
 import '../models/scheme_type.dart';
@@ -31,6 +33,9 @@ class DataProvider extends ChangeNotifier {
         _loadSchemeTypes(),
         _loadUserSchemes(),
       ]);
+      
+      // Clean up any duplicate transactions after loading
+      await cleanupDuplicateTransactions();
     } catch (e) {
       // Continue with empty data rather than crashing
       // Error is handled silently to prevent app crashes
@@ -131,7 +136,13 @@ class DataProvider extends ChangeNotifier {
 
   // Get recent transactions (last 5)
   List<Transaction> getRecentTransactions({int limit = 5}) {
-    final sortedTransactions = List<Transaction>.from(_transactions)
+    // Remove duplicates by ID to prevent showing duplicate transactions
+    final uniqueTransactions = <String, Transaction>{};
+    for (final transaction in _transactions) {
+      uniqueTransactions[transaction.id] = transaction;
+    }
+    
+    final sortedTransactions = List<Transaction>.from(uniqueTransactions.values)
       ..sort((a, b) => b.date.compareTo(a.date));
     return sortedTransactions.take(limit).toList();
   }
@@ -307,6 +318,25 @@ class DataProvider extends ChangeNotifier {
   // Refresh data
   Future<void> refreshData() async {
     await initializeData();
+  }
+
+  // Clean up duplicate transactions
+  Future<void> cleanupDuplicateTransactions() async {
+    final uniqueTransactions = <String, Transaction>{};
+    for (final transaction in _transactions) {
+      uniqueTransactions[transaction.id] = transaction;
+    }
+    
+    _transactions = uniqueTransactions.values.toList();
+    
+    // Save cleaned transactions to storage
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'fst_transactions',
+      jsonEncode(_transactions.map((t) => t.toJson()).toList()),
+    );
+    
+    notifyListeners();
   }
 
   void _setLoading(bool loading) {
