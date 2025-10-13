@@ -1249,6 +1249,14 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
     final theme = Theme.of(context);
     final userId = _selectedUser!.id;
     
+    // Get user scheme for this user
+    UserScheme? userScheme;
+    try {
+      userScheme = _userSchemes.firstWhere((s) => s.userId == userId);
+    } catch (e) {
+      userScheme = null;
+    }
+    
     // Use cached values to avoid recalculation
     final totalAmount = _userSchemes
         .where((s) => s.userId == userId)
