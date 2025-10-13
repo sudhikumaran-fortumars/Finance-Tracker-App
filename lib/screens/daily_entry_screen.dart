@@ -151,6 +151,19 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       
       if (totalAmount > 0 && mounted) {
         _amountController.text = totalAmount.toStringAsFixed(0);
+        
+        // Show breakdown in a snackbar if there's overdue amount
+        if (overdueAmount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Auto-filled: ₹${weeklyAmount.toStringAsFixed(0)} (current week) + ₹${overdueAmount.toStringAsFixed(0)} (overdue) = ₹${totalAmount.toStringAsFixed(0)}',
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       // Handle any errors silently to prevent rendering issues
@@ -176,36 +189,26 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       
       final joiningDate = userScheme.startDate;
       final now = DateTime.now();
-      final daysSinceJoining = now.difference(joiningDate).inDays;
       final weeklyAmount = userScheme.totalAmount / 52;
       
-      // Calculate current week number
-      final currentWeek = (daysSinceJoining / 7).floor();
-      
-      // Get all transactions for this user from the provider
+      // Get all transactions for this user
       final allTransactions = Provider.of<DataProvider>(context, listen: false).transactions;
       final userTransactions = allTransactions.where((t) => t.userId == userId).toList();
       
       // Calculate how many weeks have passed since joining
-      final weeksPassed = currentWeek + 1;
+      final daysSinceJoining = now.difference(joiningDate).inDays;
+      final weeksPassed = (daysSinceJoining / 7).floor();
       
-      // Calculate how many payments should have been made
-      // Only consider a week overdue if it's been more than 7 days since the week started
-      final expectedPayments = weeksPassed;
+      // Calculate overdue amount
+      double overdueAmount = 0.0;
       
-      // Calculate how many payments have actually been made
-      final actualPayments = userTransactions.length;
-      
-      // Calculate overdue weeks - only if the current week is more than 7 days old
-      int overdueWeeks = 0;
-      
-      // Check each week to see if it's overdue
+      // Check each week to see if payment is missing
       for (int week = 0; week < weeksPassed; week++) {
         final weekStartDate = joiningDate.add(Duration(days: week * 7));
         final weekEndDate = weekStartDate.add(const Duration(days: 6));
         final daysSinceWeekEnd = now.difference(weekEndDate).inDays;
         
-        // A week is overdue only if it's been more than 7 days since the week ended
+        // A week is overdue if it's been more than 7 days since the week ended
         if (daysSinceWeekEnd > 7) {
           // Check if payment was made for this week
           final hasPaymentForWeek = userTransactions.any((transaction) {
@@ -215,14 +218,12 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           });
           
           if (!hasPaymentForWeek) {
-            overdueWeeks++;
+            overdueAmount += weeklyAmount;
           }
         }
       }
       
-      
-      // Return overdue amount (overdue weeks * weekly amount)
-      return overdueWeeks > 0 ? overdueWeeks * weeklyAmount : 0.0;
+      return overdueAmount;
       
     } catch (e) {
       return 0.0;
@@ -1582,8 +1583,10 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       // Check if payment is within 7 days of current week start
       if (daysFromWeekStart <= 7) {
         // Payment is within 7 days of current week start - give 5% bonus
-        // 100 Rs = 5 Rs bonus, 200 Rs = 10 Rs bonus, 300 Rs = 15 Rs bonus, etc.
-        return amount * 0.05; // 5% of the payment amount
+        // But only on the current week's amount, not on overdue amounts
+        final weeklyAmount = userScheme.totalAmount / 52;
+        final currentWeekAmount = amount > weeklyAmount ? weeklyAmount : amount;
+        return currentWeekAmount * 0.05; // 5% of current week amount only
       } else {
         // Payment is overdue for current week - no bonus
         return 0.0;
