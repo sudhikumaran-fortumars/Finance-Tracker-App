@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'providers/navigation_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/data_provider.dart';
 import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
+import 'screens/simple_auth_screen.dart';
+import 'services/simple_auth_service.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/user_management_screen.dart';
 import 'screens/daily_entry_screen.dart';
@@ -450,13 +450,11 @@ class MainApp extends StatelessWidget {
 
   Future<void> _logout(BuildContext context) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoggedIn', false);
-      await prefs.remove('userEmail');
+      SimpleAuthService.signOut();
       
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const SimpleAuthScreen()),
           (route) => false,
         );
       }

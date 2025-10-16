@@ -200,17 +200,16 @@ class DataProvider extends ChangeNotifier {
     final todayAmount = todayTransactions.fold(0.0, (sum, t) => sum + t.amount);
 
     // Calculate pending dues (current week + overdue amounts)
-    double pendingDues = 0.0;
     try {
       for (final user in _users) {
         final userSchemes = _userSchemes.where((scheme) => scheme.userId == user.id);
         if (userSchemes.isNotEmpty) {
           final userScheme = userSchemes.first;
-          final userPendingDues = _calculateUserPendingDues(user.id, userScheme);
-          pendingDues += userPendingDues;
+          _calculateUserPendingDues(user.id, userScheme);
         }
       }
     } catch (e) {
+      // Handle error silently
     }
 
     // Calculate remaining amount (total scheme amount - collected amount)
@@ -229,6 +228,13 @@ class DataProvider extends ChangeNotifier {
       }
     } catch (e) {
       thisWeekCollectable = 0.0;
+    }
+
+    // Calculate remaining weekly collection by subtracting today's collection
+    double remainingWeeklyCollection = thisWeekCollectable - todayAmount;
+    // Ensure it doesn't go below 0
+    if (remainingWeeklyCollection < 0) {
+      remainingWeeklyCollection = 0.0;
     }
 
     // Calculate completed cycles (users who have collected their full scheme amount)
@@ -263,7 +269,7 @@ class DataProvider extends ChangeNotifier {
       'totalUsers': totalUsers,
       'todayTransactions': todayTransactions.length,
       'todayAmount': todayAmount,
-      'pendingDues': thisWeekCollectable, // Show this week's collectable amount
+      'pendingDues': remainingWeeklyCollection, // Show remaining weekly collection after today's collection
       'completedCycles': completedCycles, // Show completed cycles
       'availableSchemes': availableSchemes, // Show available schemes count
     };

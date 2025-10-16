@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
@@ -108,7 +107,10 @@ class PdfService {
     final totalAmount = transactions.fold(0.0, (sum, t) => sum + t.amount);
     final totalUsers = users.length;
     final totalTransactions = transactions.length;
-    final averageAmount = totalTransactions > 0 ? totalAmount / totalTransactions : 0.0;
+    final bonusEarned = transactions.fold(0.0, (sum, t) => sum + t.interest);
+    
+    // Check if this is a user-specific report
+    final isUserSpecific = users.length == 1;
 
     return pw.Container(
       padding: const pw.EdgeInsets.all(16),
@@ -140,7 +142,10 @@ class PdfService {
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               _buildSummaryItem('Total Amount', _formatCurrencyForPdf(totalAmount)),
-              _buildSummaryItem('Average Amount', _formatCurrencyForPdf(averageAmount)),
+              _buildSummaryItem(
+                'Bonus Earned', 
+                _formatCurrencyForPdf(bonusEarned)
+              ),
             ],
           ),
         ],
@@ -250,7 +255,7 @@ class PdfService {
                   _buildTableCell(_formatCurrencyForPdf(transaction.interest)),
                 ],
               );
-            }).toList(),
+            }),
           ],
         ),
       ],
@@ -311,7 +316,7 @@ class PdfService {
                   _buildTableCell(user.status.toString().split('.').last),
                 ],
               );
-            }).toList(),
+            }),
           ],
         ),
       ],

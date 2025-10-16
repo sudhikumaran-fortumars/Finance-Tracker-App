@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../models/address.dart';
 import '../models/transaction.dart';
 import '../models/user_scheme.dart';
+import '../models/scheme_type.dart';
 import '../services/storage_service.dart';
 import '../services/pdf_service.dart';
 import '../widgets/common/card_widget.dart';
@@ -31,7 +31,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   // Analytics data
   double _totalAmount = 0.0;
   int _totalTransactions = 0;
-  double _averageAmount = 0.0;
+  double _bonusEarned = 0.0;
   Map<String, double> _paymentModeBreakdown = {};
   Map<String, double> _clientBreakdown = {};
 
@@ -75,14 +75,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
         _totalAmount = 0.0;
         _totalTransactions = 0;
-        _averageAmount = 0.0;
+        _bonusEarned = 0.0;
         _paymentModeBreakdown = {};
     _clientBreakdown = {};
 
     if (filteredTransactions.isNotEmpty) {
     _totalAmount = filteredTransactions.fold(0.0, (sum, t) => sum + t.amount);
     _totalTransactions = filteredTransactions.length;
-    _averageAmount = _totalAmount / _totalTransactions;
+    
+    // Calculate bonus earned (sum of interest from transactions)
+    _bonusEarned = filteredTransactions.fold(0.0, (sum, t) => sum + t.interest);
 
     // Payment mode breakdown
     for (var transaction in filteredTransactions) {
@@ -557,11 +559,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   Colors.green,
                 ),
                 _buildStatCard(
-                                'Average',
-                                '₹${_averageAmount.toStringAsFixed(2)}',
-                                Icons.trending_up,
-                                Colors.orange,
-                              ),
+                  'Bonus Earned',
+                  '₹${_bonusEarned.toStringAsFixed(2)}',
+                  Icons.star,
+                  Colors.amber,
+                ),
                 _buildStatCard(
                   'Clients',
                   _users.length.toString(),
@@ -579,11 +581,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                   const SizedBox(height: 16),
 
-            // Client-wise Analytics Chart
-                  CardWidget(
-              title: 'Client-wise Analytics',
-              child: _buildClientBreakdownChart(),
-                  ),
+            // Client-wise Analytics Chart (only show if not user-specific)
+            if (_selectedClient == 'all')
+              CardWidget(
+                title: 'Client-wise Analytics',
+                child: _buildClientBreakdownChart(),
+              ),
+            
+            // User-specific summary (only show if user is selected)
+            if (_selectedClient != 'all')
+              CardWidget(
+                title: 'User Summary',
+                child: _buildUserSummary(),
+              ),
                   const SizedBox(height: 16),
 
             // Daily Transaction Summary (if date range is selected)
@@ -795,10 +805,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ? '${_selectedDateRange!.start.toString().split(' ')[0]} to ${_selectedDateRange!.end.toString().split(' ')[0]}'
           : _selectedPeriod;
       
+      // Filter users and user schemes for user-specific reports
+      List<User> reportUsers = _users;
+      List<UserScheme> reportUserSchemes = _userSchemes;
+      
+      if (_selectedClient != 'all') {
+        // User-specific report: show only selected user's data
+        reportUsers = _users.where((u) => u.id == _selectedClient).toList();
+        reportUserSchemes = _userSchemes.where((s) => s.userId == _selectedClient).toList();
+      }
+      
       await PdfService.generateReport(
-        users: _users,
+        users: reportUsers,
         transactions: transactions,
-        userSchemes: _userSchemes,
+        userSchemes: reportUserSchemes,
         reportType: reportType,
         period: period,
         dateRange: _selectedDateRange,
@@ -857,6 +877,184 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ],
           ),
+      ),
+    );
+  }
+
+  Widget _buildUserSummary() {
+    if (_selectedClient == 'all') return const SizedBox.shrink();
+    
+    try {
+      final user = _users.firstWhere((u) => u.id == _selectedClient);
+      final userTransactions = _getFilteredTransactions();
+      final userScheme = _userSchemes.firstWhere(
+        (s) => s.userId == _selectedClient,
+        orElse: () => UserScheme(
+          id: '',
+          userId: _selectedClient,
+          schemeType: SchemeType(
+            id: 'default',
+            name: 'Default',
+            description: 'Default scheme',
+            interestRate: 0.0,
+            amount: 0.0,
+            duration: 365,
+            frequency: Frequency.monthly,
+          ),
+          totalAmount: 0.0,
+          startDate: DateTime.now(),
+          duration: 365,
+          interestRate: 0.0,
+          currentBalance: 0.0,
+          status: SchemeStatus.active,
+        ),
+      );
+      
+      final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+      final totalBonus = userTransactions.fold(0.0, (sum, t) => sum + t.interest);
+      final pendingAmount = userScheme.totalAmount - totalPaid;
+      
+      return Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User Info
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: Text(
+                    user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Serial: ${user.serialNumber} • ${user.mobileNumber}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Financial Summary
+            Row(
+              children: [
+                Expanded(
+                  child: _buildUserSummaryCard(
+                    'Total Scheme Amount',
+                    '₹${userScheme.totalAmount.toStringAsFixed(2)}',
+                    Icons.account_balance_wallet,
+                    Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildUserSummaryCard(
+                    'Amount Paid',
+                    '₹${totalPaid.toStringAsFixed(2)}',
+                    Icons.check_circle,
+                    Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildUserSummaryCard(
+                    'Pending Amount',
+                    '₹${pendingAmount.toStringAsFixed(2)}',
+                    Icons.schedule,
+                    Colors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildUserSummaryCard(
+                    'Bonus Earned',
+                    '₹${totalBonus.toStringAsFixed(2)}',
+                    Icons.star,
+                    Colors.amber,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        child: Text(
+          'User information not available',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildUserSummaryCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

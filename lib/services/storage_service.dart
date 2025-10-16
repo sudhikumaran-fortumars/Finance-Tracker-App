@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/address.dart';
 import '../models/scheme_type.dart';
 import '../models/user.dart';
 import '../models/user_scheme.dart';

@@ -3,6 +3,7 @@ import '../models/user.dart';
 import '../models/address.dart';
 import '../models/scheme_type.dart';
 import '../models/user_scheme.dart';
+import '../models/transaction.dart';
 import '../services/storage_service.dart';
 import '../services/indian_address_service.dart';
 import '../widgets/common/card_widget.dart';
@@ -408,6 +409,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   String? _nextCustomerNumber;
   SchemeType? _selectedScheme;
   bool _assignScheme = false;
+  DateTime? _selectedDate;
   
   // Address automation variables
   String? _selectedState;
@@ -436,9 +438,11 @@ class _UserFormDialogState extends State<_UserFormDialog> {
       _selectedState = user.permanentAddress.state;
       _selectedDistrict = user.permanentAddress.district;
       _cityController.text = user.permanentAddress.city;
+      _selectedDate = user.createdAt;
     } else {
       // Load next customer number for new users
       _loadNextCustomerNumber();
+      _selectedDate = DateTime.now();
     }
   }
 
@@ -590,6 +594,12 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 24),
+
+                      // Date Selection
+                      _buildSectionHeader('User Creation Date'),
+                      const SizedBox(height: 16),
+                      _buildDatePicker(context),
                       const SizedBox(height: 24),
 
                       // Address Information
@@ -847,6 +857,90 @@ class _UserFormDialogState extends State<_UserFormDialog> {
     );
   }
 
+  Widget _buildDatePicker(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.calendar_today,
+            color: theme.colorScheme.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Creation Date',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.grey[300] : Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _selectedDate != null
+                      ? Calculations.formatDate(_selectedDate!)
+                      : 'Select a date',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: isDark ? Colors.grey[100] : Colors.grey[900],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: _selectedDate ?? DateTime.now(),
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now().add(const Duration(days: 30)),
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: ColorScheme.light(
+                        primary: theme.colorScheme.primary,
+                        onPrimary: Colors.white,
+                        surface: isDark ? Colors.grey[800]! : Colors.white,
+                        onSurface: isDark ? Colors.grey[100]! : Colors.grey[900]!,
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (date != null) {
+                setState(() {
+                  _selectedDate = date;
+                });
+              }
+            },
+            child: Text(
+              'Choose Date',
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _calculateTotalAmount() {
     final weeklyAmount = double.tryParse(_amountController.text);
     if (weeklyAmount == null || weeklyAmount <= 0) {
@@ -922,7 +1016,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         serialNumber: serialNumber,
         selectedScheme: _assignScheme && _selectedScheme != null ? _selectedScheme!.name : null,
         status: UserStatus.active,
-        createdAt: widget.user?.createdAt ?? DateTime.now(),
+        createdAt: _selectedDate ?? DateTime.now(),
         schemes: widget.user?.schemes ?? [],
       );
 
@@ -979,10 +1073,43 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   }
 }
 
-class _UserDetailsDialog extends StatelessWidget {
+class _UserDetailsDialog extends StatefulWidget {
   final User user;
 
   const _UserDetailsDialog({required this.user});
+
+  @override
+  State<_UserDetailsDialog> createState() => _UserDetailsDialogState();
+}
+
+class _UserDetailsDialogState extends State<_UserDetailsDialog> {
+  final StorageService _storageService = StorageService.instance;
+  List<UserScheme> _userSchemes = [];
+  List<Transaction> _userTransactions = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final schemes = await _storageService.getUserSchemes();
+      final transactions = await _storageService.getTransactions();
+      
+      setState(() {
+        _userSchemes = schemes.where((scheme) => scheme.userId == widget.user.id).toList();
+        _userTransactions = transactions.where((transaction) => transaction.userId == widget.user.id).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -991,12 +1118,13 @@ class _UserDetailsDialog extends StatelessWidget {
 
     return Dialog(
       child: Container(
-        width: MediaQuery.of(context).size.width * 0.8,
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.8,
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header
             Row(
               children: [
                 Container(
@@ -1012,7 +1140,7 @@ class _UserDetailsDialog extends StatelessWidget {
                   ),
                   child: Center(
                     child: Text(
-                      user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                      widget.user.name.isNotEmpty ? widget.user.name[0].toUpperCase() : 'U',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -1027,7 +1155,7 @@ class _UserDetailsDialog extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        user.name,
+                        widget.user.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.grey[100] : Colors.grey[900],
@@ -1036,7 +1164,7 @@ class _UserDetailsDialog extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        user.mobileNumber,
+                        widget.user.mobileNumber,
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: isDark ? Colors.grey[400] : Colors.grey[600],
                         ),
@@ -1052,15 +1180,15 @@ class _UserDetailsDialog extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: user.status == UserStatus.active
+                    color: widget.user.status == UserStatus.active
                         ? Colors.green[100]
                         : Colors.red[100],
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    user.status.toString().split('.').last.toUpperCase(),
+                    widget.user.status.toString().split('.').last.toUpperCase(),
                     style: TextStyle(
-                      color: user.status == UserStatus.active
+                      color: widget.user.status == UserStatus.active
                           ? Colors.green[800]
                           : Colors.red[800],
                       fontSize: 12,
@@ -1071,23 +1199,61 @@ class _UserDetailsDialog extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-            _buildDetailRow(context, 'Serial Number', user.serialNumber),
-            _buildDetailRow(
-              context,
-              'Address',
-              _formatAddress(user.permanentAddress),
+
+            // Content
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Basic Information
+                          _buildSectionHeader(context, 'Basic Information'),
+                          const SizedBox(height: 16),
+                          _buildDetailRow(context, 'Serial Number', widget.user.serialNumber),
+                          _buildDetailRow(
+                            context,
+                            'Address',
+                            _formatAddress(widget.user.permanentAddress),
+                          ),
+                          _buildDetailRow(
+                            context,
+                            'Joined Date',
+                            Calculations.formatDate(widget.user.createdAt),
+                          ),
+                          _buildDetailRow(
+                            context,
+                            'End Date',
+                            Calculations.formatDate(widget.user.createdAt.add(const Duration(days: 364))),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Financial Information
+                          _buildSectionHeader(context, 'Financial Information'),
+                          const SizedBox(height: 16),
+                          _buildFinancialCards(context),
+                          const SizedBox(height: 24),
+
+                          // Scheme Information
+                          if (_userSchemes.isNotEmpty) ...[
+                            _buildSectionHeader(context, 'Scheme Details'),
+                            const SizedBox(height: 16),
+                            ..._userSchemes.map((scheme) => _buildSchemeCard(context, scheme)),
+                            const SizedBox(height: 24),
+                          ],
+
+                          // Transaction History
+                          _buildSectionHeader(context, 'Recent Transactions'),
+                          const SizedBox(height: 16),
+                          _buildTransactionHistory(context),
+                        ],
+                      ),
+                    ),
             ),
-            _buildDetailRow(
-              context,
-              'Joined Date',
-              Calculations.formatDate(user.createdAt),
-            ),
-            _buildDetailRow(
-              context,
-              'End Date',
-              Calculations.formatDate(user.createdAt.add(const Duration(days: 364))), // 52 weeks = 364 days
-            ),
-            const SizedBox(height: 24),
+
+            // Close Button
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -1103,12 +1269,383 @@ class _UserDetailsDialog extends StatelessWidget {
     );
   }
 
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Text(
+      title,
+      style: theme.textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.bold,
+        color: isDark ? Colors.grey[200] : Colors.grey[800],
+      ),
+    );
+  }
+
+  Widget _buildFinancialCards(BuildContext context) {
+
+    // Calculate financial data
+    final totalPaid = _userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+    final totalBonus = _userTransactions.fold(0.0, (sum, t) => sum + t.interest); // Using interest as bonus
+    final totalSchemeAmount = _userSchemes.fold(0.0, (sum, s) => sum + s.totalAmount);
+    final pendingAmount = totalSchemeAmount - totalPaid;
+    final weeklyAmount = _userSchemes.isNotEmpty ? _userSchemes.first.totalAmount / 52 : 0.0;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildFinancialCard(
+                context,
+                'Total Scheme Amount',
+                Calculations.formatCurrency(totalSchemeAmount),
+                Icons.account_balance_wallet,
+                Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildFinancialCard(
+                context,
+                'Amount Paid',
+                Calculations.formatCurrency(totalPaid),
+                Icons.payment,
+                Colors.green,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildFinancialCard(
+                context,
+                'Pending Amount',
+                Calculations.formatCurrency(pendingAmount),
+                Icons.pending,
+                Colors.orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildFinancialCard(
+                context,
+                'Total Bonus',
+                Calculations.formatCurrency(totalBonus),
+                Icons.stars,
+                Colors.purple,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildFinancialCard(
+                context,
+                'Weekly Amount',
+                Calculations.formatCurrency(weeklyAmount),
+                Icons.calendar_today,
+                Colors.teal,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildFinancialCard(
+                context,
+                'Progress',
+                '${((totalPaid / totalSchemeAmount) * 100).toStringAsFixed(1)}%',
+                Icons.trending_up,
+                Colors.indigo,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFinancialCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[800] : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSchemeCard(BuildContext context, UserScheme scheme) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[800] : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.savings,
+                color: Colors.blue,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                scheme.schemeType.name,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.grey[100] : Colors.grey[900],
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: scheme.status == SchemeStatus.active
+                      ? Colors.green[100]
+                      : scheme.status == SchemeStatus.completed
+                          ? Colors.blue[100]
+                          : Colors.orange[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  scheme.status.toString().split('.').last.toUpperCase(),
+                  style: TextStyle(
+                    color: scheme.status == SchemeStatus.active
+                        ? Colors.green[800]
+                        : scheme.status == SchemeStatus.completed
+                            ? Colors.blue[800]
+                            : Colors.orange[800],
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildDetailRow(context, 'Total Amount', Calculations.formatCurrency(scheme.totalAmount)),
+          _buildDetailRow(context, 'Interest Rate', '${scheme.interestRate}%'),
+          _buildDetailRow(context, 'Start Date', Calculations.formatDate(scheme.startDate)),
+          _buildDetailRow(context, 'Duration', '${scheme.duration} days'),
+          _buildDetailRow(context, 'Current Balance', Calculations.formatCurrency(scheme.currentBalance)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionHistory(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (_userTransactions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[800] : Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 48,
+              color: isDark ? Colors.grey[600] : Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No transactions found',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: _userTransactions.take(5).map((transaction) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.grey[800] : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _getPaymentModeColor(transaction.paymentMode).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  _getPaymentModeIcon(transaction.paymentMode),
+                  color: _getPaymentModeColor(transaction.paymentMode),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      Calculations.formatDate(transaction.date),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.grey[100] : Colors.grey[900],
+                      ),
+                    ),
+                    Text(
+                      _getPaymentModeShortName(transaction.paymentMode),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    Calculations.formatCurrency(transaction.amount),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  if (transaction.interest > 0)
+                    Text(
+                      '+${Calculations.formatCurrency(transaction.interest)} bonus',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Color _getPaymentModeColor(PaymentMode mode) {
+    switch (mode) {
+      case PaymentMode.offline:
+        return const Color(0xFF3B82F6);
+      case PaymentMode.card:
+        return const Color(0xFF10B981);
+      case PaymentMode.upi:
+        return const Color(0xFF8B5CF6);
+      case PaymentMode.netbanking:
+        return const Color(0xFFF59E0B);
+    }
+  }
+
+  IconData _getPaymentModeIcon(PaymentMode mode) {
+    switch (mode) {
+      case PaymentMode.offline:
+        return Icons.offline_bolt_rounded;
+      case PaymentMode.card:
+        return Icons.credit_card_rounded;
+      case PaymentMode.upi:
+        return Icons.phone_android_rounded;
+      case PaymentMode.netbanking:
+        return Icons.account_balance_rounded;
+    }
+  }
+
+  String _getPaymentModeShortName(PaymentMode mode) {
+    switch (mode) {
+      case PaymentMode.offline:
+        return 'OFFLINE';
+      case PaymentMode.card:
+        return 'CARD';
+      case PaymentMode.upi:
+        return 'UPI';
+      case PaymentMode.netbanking:
+        return 'NET';
+    }
+  }
+
   Widget _buildDetailRow(BuildContext context, String label, String value) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

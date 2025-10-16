@@ -127,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           'Manage your finances with ease',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
           ),
         ),
       ],
@@ -155,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 'Sign in to your account',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -295,14 +295,14 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           'Demo Credentials',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Email: admin@financetracker.com\nPassword: password123',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
             fontFamily: 'monospace',
           ),
           textAlign: TextAlign.center,
@@ -311,7 +311,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           'Version 1.0.0',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
           ),
         ),
       ],

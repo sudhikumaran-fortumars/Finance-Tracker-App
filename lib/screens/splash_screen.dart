@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'login_screen.dart';
-import 'dashboard_screen.dart';
+import '../services/simple_auth_service.dart';
+import 'simple_auth_screen.dart';
+import '../main.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -54,22 +54,19 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-
-      if (isLoggedIn) {
+      if (SimpleAuthService.isLoggedIn) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          MaterialPageRoute(builder: (context) => const MainApp()),
         );
       } else {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const SimpleAuthScreen()),
         );
       }
     } catch (e) {
-      // If there's an error, go to login screen
+      // If there's an error, go to auth screen
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(builder: (context) => const SimpleAuthScreen()),
       );
     }
   }
@@ -105,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen>
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withValues(alpha: 0.2),
                                 blurRadius: 20,
                                 offset: const Offset(0, 10),
                               ),
@@ -129,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen>
                         Text(
                           'Managing your finances made simple',
                           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
+                            color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -163,7 +160,7 @@ class _SplashScreenState extends State<SplashScreen>
         Text(
           'Loading...',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
+            color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8),
           ),
         ),
       ],

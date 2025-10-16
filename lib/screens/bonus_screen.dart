@@ -555,8 +555,9 @@ class _BonusScreenState extends State<BonusScreen> {
     final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
     final totalBonus = userTransactions.fold(0.0, (sum, t) => sum + t.interest);
 
-    showDialog(
-      context: context,
+    if (mounted) {
+      showDialog(
+        context: context,
       builder: (context) => Dialog(
         child: Container(
           width: MediaQuery.of(context).size.width * 0.9,
@@ -787,7 +788,7 @@ class _BonusScreenState extends State<BonusScreen> {
                           ),
                       ],
                     ),
-                  )).toList()
+                  ))
                 else
                   Container(
                     padding: const EdgeInsets.all(20),
@@ -801,6 +802,7 @@ class _BonusScreenState extends State<BonusScreen> {
         ),
       ),
     );
+    }
   }
 
   Widget _buildSectionHeader(String title) {

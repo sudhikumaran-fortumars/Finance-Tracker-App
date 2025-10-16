@@ -210,7 +210,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                         _buildModernStatCard(
                           context,
-                          'This Week\'s Collection',
+                          'Remaining Weekly Collection',
                           Calculations.formatCurrency(
                             dataProvider.getDashboardStats()['pendingDues'],
                           ),

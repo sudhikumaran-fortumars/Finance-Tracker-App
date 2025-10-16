@@ -146,8 +146,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       // Calculate overdue amount
       final overdueAmount = _calculateOverdueAmount(user.id);
       
-      // Debug: Print overdue calculation
-      print('DEBUG: User ${user.name} - Weekly: ₹${weeklyAmount.toStringAsFixed(0)}, Overdue: ₹${overdueAmount.toStringAsFixed(0)}');
+      // Calculate total amount including overdue
       
       // Total amount = weekly amount + overdue amount
       final totalAmount = weeklyAmount + overdueAmount;
@@ -186,22 +185,29 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   double _calculateOverdueAmount(String userId) {
     try {
-      // Get user schemes from DataProvider
+      // Get user schemes and user data from DataProvider
       final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
+      final users = dataProvider.users;
       
       UserScheme? userScheme;
+      User? user;
       try {
         userScheme = userSchemes.firstWhere(
           (scheme) => scheme.userId == userId,
         );
+        user = users.firstWhere(
+          (u) => u.id == userId,
+        );
       } catch (e) {
         userScheme = null;
+        user = null;
       }
       
-      if (userScheme == null) return 0.0;
+      if (userScheme == null || user == null) return 0.0;
       
-      final joiningDate = userScheme.startDate;
+      // Use user's creation date
+      final joiningDate = user.createdAt;
       final now = DateTime.now();
       final weeklyAmount = userScheme.totalAmount / 52;
       
@@ -209,41 +215,38 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       final allTransactions = Provider.of<DataProvider>(context, listen: false).transactions;
       final userTransactions = allTransactions.where((t) => t.userId == userId).toList();
       
-      // Calculate how many weeks have passed since joining
-      final daysSinceJoining = now.difference(joiningDate).inDays;
-      final weeksPassed = (daysSinceJoining / 7).floor();
+      // Calculate the first due date (7 days after joining)
+      final firstDueDate = joiningDate.add(const Duration(days: 7));
+      
+      // If current date is before the first due date, no overdue amount
+      if (now.isBefore(firstDueDate)) {
+        return 0.0;
+      }
+      
+      // Calculate how many weeks have passed since the first due date
+      final daysSinceFirstDue = now.difference(firstDueDate).inDays;
+      final weeksSinceFirstDue = (daysSinceFirstDue / 7).floor();
       
       // Calculate overdue amount
       double overdueAmount = 0.0;
       
-      // Debug: Print calculation details
-      print('DEBUG: Overdue calculation for user $userId');
-      print('DEBUG: Joining date: $joiningDate');
-      print('DEBUG: Current date: $now');
-      print('DEBUG: Days since joining: $daysSinceJoining');
-      print('DEBUG: Weeks passed: $weeksPassed');
-      print('DEBUG: Weekly amount: ₹${weeklyAmount.toStringAsFixed(0)}');
-      print('DEBUG: User transactions: ${userTransactions.length}');
+      // Calculate overdue amount based on first due date
       
-      // Check each week to see if payment is missing
-      for (int week = 0; week < weeksPassed; week++) {
-        final weekStartDate = joiningDate.add(Duration(days: week * 7));
-        final weekEndDate = weekStartDate.add(const Duration(days: 6));
-        final daysSinceWeekEnd = now.difference(weekEndDate).inDays;
+      // Check each week since the first due date to see if payment is missing
+      for (int week = 0; week <= weeksSinceFirstDue; week++) {
+        final weekDueDate = firstDueDate.add(Duration(days: week * 7));
+        final weekStartDate = weekDueDate.subtract(const Duration(days: 6));
+        final weekEndDate = weekDueDate;
         
-        // A week is overdue if it's been more than 0 days since the week ended (immediately overdue)
-        if (daysSinceWeekEnd >= 0) {
-          // Check if payment was made for this week
-          final hasPaymentForWeek = userTransactions.any((transaction) {
-            final transactionDate = transaction.date;
-            return transactionDate.isAfter(weekStartDate.subtract(const Duration(days: 1))) &&
-                   transactionDate.isBefore(weekEndDate.add(const Duration(days: 1)));
-          });
-          
-          if (!hasPaymentForWeek) {
-            overdueAmount += weeklyAmount;
-            print('DEBUG: Week $week is overdue - adding ₹${weeklyAmount.toStringAsFixed(0)}');
-          }
+        // Check if payment was made for this week
+        final hasPaymentForWeek = userTransactions.any((transaction) {
+          final transactionDate = transaction.date;
+          return transactionDate.isAfter(weekStartDate.subtract(const Duration(days: 1))) &&
+                 transactionDate.isBefore(weekEndDate.add(const Duration(days: 1)));
+        });
+        
+        if (!hasPaymentForWeek) {
+          overdueAmount += weeklyAmount;
         }
       }
       
@@ -256,42 +259,47 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   DateTime? _calculateNextDueDate(String userId) {
     try {
-      // Get user schemes from DataProvider
+      // Get user schemes and user data from DataProvider
       final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
+      final users = dataProvider.users;
       
       UserScheme? userScheme;
+      User? user;
       try {
         userScheme = userSchemes.firstWhere(
           (scheme) => scheme.userId == userId,
         );
+        user = users.firstWhere(
+          (u) => u.id == userId,
+        );
       } catch (e) {
         userScheme = null;
+        user = null;
       }
       
-      if (userScheme == null) return null;
+      if (userScheme == null || user == null) return null;
       
-      final joiningDate = userScheme.startDate;
+      // Use user's creation date
+      final joiningDate = user.createdAt;
       final now = DateTime.now();
-      final daysSinceJoining = now.difference(joiningDate).inDays;
       
-      // Calculate current week number
-      final currentWeek = (daysSinceJoining / 7).floor();
+      // Calculate the first due date (7 days after joining)
+      final firstDueDate = joiningDate.add(const Duration(days: 7));
       
-      // Calculate next week start date
-      final nextWeekStart = joiningDate.add(Duration(days: (currentWeek + 1) * 7));
-      
-      // If we're still in the current week, return current week's due date
-      final currentWeekStart = joiningDate.add(Duration(days: currentWeek * 7));
-      final currentWeekEnd = currentWeekStart.add(const Duration(days: 6));
-      
-      if (now.isBefore(currentWeekEnd.add(const Duration(days: 1)))) {
-        // Still in current week, return current week's due date
-        return currentWeekEnd;
-      } else {
-        // Current week is over, return next week's due date
-        return nextWeekStart.add(const Duration(days: 6));
+      // If current date is before the first due date, return first due date
+      if (now.isBefore(firstDueDate)) {
+        return firstDueDate;
       }
+      
+      // Calculate how many weeks have passed since the first due date
+      final daysSinceFirstDue = now.difference(firstDueDate).inDays;
+      final weeksSinceFirstDue = (daysSinceFirstDue / 7).floor();
+      
+      // Calculate the next due date
+      final nextDueDate = firstDueDate.add(Duration(days: (weeksSinceFirstDue + 1) * 7));
+      
+      return nextDueDate;
     } catch (e) {
       return null;
     }
@@ -1647,40 +1655,59 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
     if (_selectedUser == null) return 0.0;
     
     try {
-      // Get user's scheme from DataProvider
+      // Get user's scheme and user data from DataProvider
       final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
+      final users = dataProvider.users;
       
       UserScheme? userScheme;
+      User? user;
       try {
         userScheme = userSchemes.firstWhere(
           (scheme) => scheme.userId == _selectedUser!.id,
         );
+        user = users.firstWhere(
+          (u) => u.id == _selectedUser!.id,
+        );
       } catch (e) {
         userScheme = null;
+        user = null;
       }
       
-      if (userScheme == null) return 0.0;
+      if (userScheme == null || user == null) return 0.0;
       
-      final joiningDate = userScheme.startDate;
-      final daysSinceJoining = paymentDate.difference(joiningDate).inDays;
+      // Use user's creation date
+      final joiningDate = user.createdAt;
       
+      // Calculate the first due date (7 days after joining)
+      final firstDueDate = joiningDate.add(const Duration(days: 7));
       
       // Calculate which week this payment is for
-      final weekNumber = (daysSinceJoining / 7).floor();
-      final weekStartDate = joiningDate.add(Duration(days: weekNumber * 7));
-      final daysFromWeekStart = paymentDate.difference(weekStartDate).inDays;
+      DateTime weekDueDate;
       
+      if (paymentDate.isBefore(firstDueDate)) {
+        // Payment is before first due date - check if it's within 7 days of first due date
+        weekDueDate = firstDueDate;
+      } else {
+        // Payment is on or after first due date - find the correct week
+        final daysSinceFirstDue = paymentDate.difference(firstDueDate).inDays;
+        final weekNumber = (daysSinceFirstDue / 7).floor();
+        weekDueDate = firstDueDate.add(Duration(days: (weekNumber + 1) * 7));
+      }
       
-      // Check if payment is within 7 days of current week start
-      if (daysFromWeekStart <= 7) {
-        // Payment is within 7 days of current week start - give 5% bonus
-        // But only on the current week's amount, not on overdue amounts
+      // Calculate days from payment to due date (positive if payment is before due date)
+      final daysFromPaymentToDue = weekDueDate.difference(paymentDate).inDays;
+      
+      // Calculate bonus based on payment timing
+      
+      // Check if payment is within 7 days BEFORE the due date (early payment)
+      if (daysFromPaymentToDue >= 0 && daysFromPaymentToDue <= 7) {
+        // Payment is within 7 days BEFORE the due date - give 5% bonus
         final weeklyAmount = userScheme.totalAmount / 52;
         final currentWeekAmount = amount > weeklyAmount ? weeklyAmount : amount;
         return currentWeekAmount * 0.05; // 5% of current week amount only
       } else {
-        // Payment is overdue for current week - no bonus
+        // Payment is overdue or too early - no bonus
         return 0.0;
       }
     } catch (e) {
