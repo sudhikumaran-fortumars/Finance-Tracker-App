@@ -108,9 +108,6 @@ class PdfService {
     final totalUsers = users.length;
     final totalTransactions = transactions.length;
     final bonusEarned = transactions.fold(0.0, (sum, t) => sum + t.interest);
-    
-    // Check if this is a user-specific report
-    final isUserSpecific = users.length == 1;
 
     return pw.Container(
       padding: const pw.EdgeInsets.all(16),
