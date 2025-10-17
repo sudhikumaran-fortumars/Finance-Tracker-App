@@ -159,7 +159,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Auto-filled: ₹${weeklyAmount.toStringAsFixed(0)} (current week) + ₹${overdueAmount.toStringAsFixed(0)} (overdue) = ₹${totalAmount.toStringAsFixed(0)}',
+                'Auto-filled: ₹${weeklyAmount.toStringAsFixed(0)} (current week) + ₹${overdueAmount.toStringAsFixed(0)} (overdue) = ₹${totalAmount.toStringAsFixed(0)} | Remaining: ${_getRemainingWeeksForUser(user.id)} weeks',
               ),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 5),
@@ -170,7 +170,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Auto-filled: ₹${weeklyAmount.toStringAsFixed(0)} (current week)',
+                'Auto-filled: ₹${weeklyAmount.toStringAsFixed(0)} (current week) | Remaining: ${_getRemainingWeeksForUser(user.id)} weeks',
               ),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
@@ -376,7 +376,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         );
         await _storageService.saveUserScheme(updatedScheme);
 
-        // Update local state without reloading
+        // Update local state and refresh data provider
         setState(() {
           final index = _userSchemes.indexWhere((s) => s.id == userScheme.id);
           if (index != -1) {
@@ -385,7 +385,10 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           _calculateUserAmounts(dataProvider.transactions);
         });
 
-        // Clear form
+        // Refresh the data provider to ensure latest transactions are available
+        await dataProvider.refreshData();
+
+        // Clear form and trigger final rebuild
         _amountController.clear();
         _remarksController.clear();
         setState(() {
@@ -393,6 +396,13 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
           _selectedDate = DateTime.now();
           _isSaving = false; // Reset loading state
         });
+
+        // Force a rebuild of the entire screen to ensure week count updates
+        if (mounted) {
+          setState(() {
+            // This will trigger a rebuild of all Consumer widgets
+          });
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1423,49 +1433,104 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          // Next Due Date
-          if (_calculateNextDueDate(userId) != null)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.blue.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.schedule,
-                    color: Colors.blue,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          // Next Due Date and Remaining Weeks
+          Row(
+            children: [
+              if (_calculateNextDueDate(userId) != null)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.blue.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          'Next Due Date',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        Icon(
+                          Icons.schedule,
+                          color: Colors.blue,
+                          size: 20,
                         ),
-                        Text(
-                          Calculations.formatDate(_calculateNextDueDate(userId)!),
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Next Due Date',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                Calculations.formatDate(_calculateNextDueDate(userId)!),
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
+                ),
+              if (_calculateNextDueDate(userId) != null)
+                const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        color: Colors.green,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Remaining Weeks',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.green,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Consumer<DataProvider>(
+                              builder: (context, dataProvider, child) {
+                                return Text(
+                                  '${_calculateRemainingWeeks(userId)} weeks',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
+          ),
         ],
       ),
     );
@@ -1567,11 +1632,15 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                     color: theme.colorScheme.primary,
                   ),
                 ),
-                Text(
-                  'Weekly: ₹${(userScheme.totalAmount / 52).toStringAsFixed(0)} | Total: ₹${userScheme.totalAmount.toStringAsFixed(0)} | Duration: 52 weeks',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
+                Consumer<DataProvider>(
+                  builder: (context, dataProvider, child) {
+                    return Text(
+                      'Weekly: ₹${(userScheme.totalAmount / 52).toStringAsFixed(0)} | Total: ₹${userScheme.totalAmount.toStringAsFixed(0)} | Duration: 52 weeks | Remaining: ${_calculateRemainingWeeks(userId)} weeks',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -1648,6 +1717,84 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         ],
       ),
     );
+  }
+
+  /// Calculate remaining weeks for a user
+  int _calculateRemainingWeeks(String userId) {
+    try {
+      // Get user schemes and user data from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      final users = dataProvider.users;
+      
+      UserScheme? userScheme;
+      User? user;
+      try {
+        userScheme = userSchemes.firstWhere(
+          (scheme) => scheme.userId == userId,
+        );
+        user = users.firstWhere(
+          (u) => u.id == userId,
+        );
+      } catch (e) {
+        userScheme = null;
+        user = null;
+      }
+      
+      if (userScheme == null || user == null) return 52;
+      
+      // Get all transactions for this user from DataProvider
+      final allTransactions = dataProvider.transactions;
+      final userTransactions = allTransactions.where((t) => t.userId == userId).toList();
+      
+      // Calculate total amount paid
+      final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+      
+      // Calculate weekly amount from scheme
+      final weeklyAmount = userScheme.totalAmount / 52;
+      
+      // Calculate how many weeks have been paid for based on total amount
+      final paidWeeks = (totalPaid / weeklyAmount).floor();
+      
+      // Calculate remaining weeks
+      final remainingWeeks = 52 - paidWeeks;
+      
+      print('DEBUG: User $userId - Total paid: ₹$totalPaid, Weekly amount: ₹$weeklyAmount, Paid weeks: $paidWeeks, Remaining: $remainingWeeks');
+      
+      return remainingWeeks > 0 ? remainingWeeks : 0;
+      
+    } catch (e) {
+      print('DEBUG: Error calculating remaining weeks for user $userId: $e');
+      return 52; // Default to 52 weeks if calculation fails
+    }
+  }
+
+  /// Get remaining weeks for display in messages
+  int _getRemainingWeeksForUser(String userId) {
+    try {
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      final allTransactions = dataProvider.transactions;
+      
+      UserScheme? userScheme;
+      try {
+        userScheme = userSchemes.firstWhere((scheme) => scheme.userId == userId);
+      } catch (e) {
+        return 52;
+      }
+      
+      if (userScheme == null) return 52;
+      
+      final userTransactions = allTransactions.where((t) => t.userId == userId).toList();
+      final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+      final weeklyAmount = userScheme.totalAmount / 52;
+      final paidWeeks = (totalPaid / weeklyAmount).floor();
+      final remainingWeeks = 52 - paidWeeks;
+      
+      return remainingWeeks > 0 ? remainingWeeks : 0;
+    } catch (e) {
+      return 52;
+    }
   }
 
   /// Calculate bonus based on payment timing and user joining date

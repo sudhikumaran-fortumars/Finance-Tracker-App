@@ -314,7 +314,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
               const SizedBox(width: 4),
               Text(
-                'Ends ${Calculations.formatDate(user.createdAt.add(const Duration(days: 364)))}',
+                'Ends ${Calculations.formatDate(user.createdAt.add(const Duration(days: 364)))} (52 weeks)',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: isDark ? Colors.grey[400] : Colors.grey[600],
                 ),
@@ -763,7 +763,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                   controller: _amountController,
                   decoration: const InputDecoration(
                     labelText: 'Weekly Amount (₹)',
-                    hintText: 'Enter weekly contribution amount',
+                    hintText: 'Enter weekly contribution amount (52 weeks total)',
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
@@ -806,7 +806,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Total Amount (52 weeks)',
+                                'Total Amount (52 weeks duration)',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: Theme.of(context).colorScheme.primary,
                                   fontWeight: FontWeight.w500,
@@ -1088,6 +1088,42 @@ class _UserDetailsDialogState extends State<_UserDetailsDialog> {
   List<Transaction> _userTransactions = [];
   bool _isLoading = true;
 
+  /// Calculate remaining weeks for a user
+  int _calculateRemainingWeeks() {
+    try {
+      if (_userSchemes.isEmpty) return 52;
+      
+      final userScheme = _userSchemes.first;
+      final totalPaid = _userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+      final weeklyAmount = userScheme.totalAmount / 52;
+      final paidWeeks = (totalPaid / weeklyAmount).floor();
+      final remainingWeeks = 52 - paidWeeks;
+      
+      return remainingWeeks > 0 ? remainingWeeks : 0;
+    } catch (e) {
+      return 52;
+    }
+  }
+
+  /// Refresh user data to get latest transactions
+  Future<void> _refreshUserData() async {
+    setState(() => _isLoading = true);
+    try {
+      final schemes = await _storageService.getUserSchemes();
+      final transactions = await _storageService.getTransactions();
+      
+      setState(() {
+        _userSchemes = schemes.where((scheme) => scheme.userId == widget.user.id).toList();
+        _userTransactions = transactions.where((transaction) => transaction.userId == widget.user.id).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1222,11 +1258,16 @@ class _UserDetailsDialogState extends State<_UserDetailsDialog> {
                             'Joined Date',
                             Calculations.formatDate(widget.user.createdAt),
                           ),
-                          _buildDetailRow(
-                            context,
-                            'End Date',
-                            Calculations.formatDate(widget.user.createdAt.add(const Duration(days: 364))),
-                          ),
+          _buildDetailRow(
+            context,
+            'End Date',
+            '${Calculations.formatDate(widget.user.createdAt.add(const Duration(days: 364)))} (52 weeks)',
+          ),
+          _buildDetailRow(
+            context,
+            'Remaining Weeks',
+            '${_calculateRemainingWeeks()} weeks',
+          ),
                           const SizedBox(height: 24),
 
                           // Financial Information
@@ -1252,11 +1293,16 @@ class _UserDetailsDialogState extends State<_UserDetailsDialog> {
                     ),
             ),
 
-            // Close Button
+            // Action Buttons
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                TextButton.icon(
+                  onPressed: _refreshUserData,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Close'),
@@ -1356,9 +1402,9 @@ class _UserDetailsDialogState extends State<_UserDetailsDialog> {
             Expanded(
               child: _buildFinancialCard(
                 context,
-                'Progress',
-                '${((totalPaid / totalSchemeAmount) * 100).toStringAsFixed(1)}%',
-                Icons.trending_up,
+                'Remaining Weeks',
+                '${_calculateRemainingWeeks()} weeks',
+                Icons.schedule,
                 Colors.indigo,
               ),
             ),
@@ -1489,7 +1535,8 @@ class _UserDetailsDialogState extends State<_UserDetailsDialog> {
           _buildDetailRow(context, 'Total Amount', Calculations.formatCurrency(scheme.totalAmount)),
           _buildDetailRow(context, 'Interest Rate', '${scheme.interestRate}%'),
           _buildDetailRow(context, 'Start Date', Calculations.formatDate(scheme.startDate)),
-          _buildDetailRow(context, 'Duration', '${scheme.duration} days'),
+          _buildDetailRow(context, 'Duration', '${(scheme.duration / 7).round()} weeks'),
+          _buildDetailRow(context, 'Remaining Weeks', '${_calculateRemainingWeeks()} weeks'),
           _buildDetailRow(context, 'Current Balance', Calculations.formatCurrency(scheme.currentBalance)),
         ],
       ),
