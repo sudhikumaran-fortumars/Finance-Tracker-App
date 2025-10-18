@@ -10,6 +10,7 @@ import '../widgets/common/card_widget.dart';
 import '../widgets/common/button_widget.dart';
 import '../providers/data_provider.dart';
 import '../services/storage_service.dart';
+import '../services/whatsapp_service.dart';
 
 class DailyEntryScreen extends StatefulWidget {
   const DailyEntryScreen({super.key});
@@ -43,6 +44,9 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
   
   // Track processed transaction IDs to prevent duplicates
   final Set<String> _processedTransactionIds = {};
+  
+  // WhatsApp service instance
+  final WhatsAppService _whatsappService = WhatsAppService.instance;
 
   @override
   void initState() {
@@ -388,6 +392,16 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         // Refresh the data provider to ensure latest transactions are available
         await dataProvider.refreshData();
 
+        // Send WhatsApp payment confirmation
+        print('DEBUG: Sending WhatsApp confirmation for user: ${_selectedUser!.name}');
+        await _sendWhatsAppConfirmation(
+          user: _selectedUser!,
+          transaction: transaction,
+          userScheme: userScheme,
+          pendingAmount: _userPendingAmounts[_selectedUser!.id] ?? 0.0,
+          totalBonus: _userBonuses[_selectedUser!.id] ?? 0.0,
+        );
+
         // Clear form and trigger final rebuild
         _amountController.clear();
         _remarksController.clear();
@@ -579,6 +593,44 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                                         onPressed: _isSaving ? null : _saveTransaction,
                                       ),
                                     ),
+                                    const SizedBox(height: 12),
+                                    
+                                    // WhatsApp Buttons
+                                    if (_selectedUser != null) ...[
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSaving ? null : _sendManualWhatsAppMessage,
+                                          icon: const Icon(Icons.message_rounded),
+                                          label: const Text('Send WhatsApp Message'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(0xFF25D366),
+                                            side: const BorderSide(color: Color(0xFF25D366)),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSaving ? null : _testWhatsApp,
+                                          icon: const Icon(Icons.bug_report),
+                                          label: const Text('Test WhatsApp'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.orange,
+                                            side: const BorderSide(color: Colors.orange),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -1859,6 +1911,204 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       }
     } catch (e) {
       return 0.0;
+    }
+  }
+
+  // ==================== WHATSAPP INTEGRATION ====================
+
+  /// Send WhatsApp payment confirmation
+  Future<void> _sendWhatsAppConfirmation({
+    required User user,
+    required Transaction transaction,
+    required UserScheme userScheme,
+    required double pendingAmount,
+    required double totalBonus,
+  }) async {
+    try {
+      // Calculate next due date
+      final nextDueDate = _calculateNextDueDate(user.id);
+      
+      // Send WhatsApp message
+      final success = await _whatsappService.sendPaymentConfirmation(
+        user: user,
+        transaction: transaction,
+        userScheme: userScheme,
+        pendingAmount: pendingAmount,
+        totalBonus: totalBonus,
+        nextDueDate: nextDueDate,
+      );
+      
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp opened successfully! Please send the message.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp not available. Please check if WhatsApp is installed.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error sending WhatsApp message: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending WhatsApp message: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+
+  /// Send manual WhatsApp message
+  Future<void> _sendManualWhatsAppMessage() async {
+    if (_selectedUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a user first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Get user scheme and transactions
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      final allTransactions = dataProvider.transactions;
+
+      UserScheme? userScheme;
+      try {
+        userScheme = userSchemes.firstWhere((scheme) => scheme.userId == _selectedUser!.id);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No scheme found for this user'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final userTransactions = allTransactions.where((t) => t.userId == _selectedUser!.id).toList();
+      final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+      final totalBonus = userTransactions.fold(0.0, (sum, t) => sum + (t.interest ?? 0));
+      final pendingAmount = userScheme.totalAmount - totalPaid;
+      final nextDueDate = _calculateNextDueDate(_selectedUser!.id);
+
+      // Create a sample transaction for the message
+      final sampleTransaction = Transaction(
+        id: 'sample',
+        userId: _selectedUser!.id,
+        schemeId: userScheme.id,
+        amount: 0.0, // Will be filled by user
+        paymentMode: PaymentMode.offline,
+        date: DateTime.now(),
+        interest: 0.0,
+        remarks: 'Manual WhatsApp message',
+      );
+
+      // Send WhatsApp message
+      final success = await _whatsappService.sendPaymentConfirmation(
+        user: _selectedUser!,
+        transaction: sampleTransaction,
+        userScheme: userScheme,
+        pendingAmount: pendingAmount,
+        totalBonus: totalBonus,
+        nextDueDate: nextDueDate,
+      );
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp message sent successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp not available. Please check if WhatsApp is installed.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error sending manual WhatsApp message: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending WhatsApp message: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Test WhatsApp functionality
+  Future<void> _testWhatsApp() async {
+    if (_selectedUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a user first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      print('DEBUG: Testing WhatsApp for user: ${_selectedUser!.name}');
+      print('DEBUG: User phone: ${_selectedUser!.mobileNumber}');
+      
+      final success = await _whatsappService.sendWhatsAppMessage(
+        phoneNumber: _selectedUser!.mobileNumber,
+        message: 'Test message from Finance Tracker App. WhatsApp integration is working! 🎉',
+      );
+      
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp test successful! Check if WhatsApp opened.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp test failed. Check console for details.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('DEBUG: Test WhatsApp error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Test error: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 }
