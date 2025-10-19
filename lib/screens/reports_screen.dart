@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../models/address.dart';
 import '../models/transaction.dart';
 import '../models/user_scheme.dart';
 import '../models/scheme_type.dart';
-import '../services/storage_service.dart';
+import '../providers/firebase_data_provider.dart';
 import '../services/pdf_service.dart';
 import '../widgets/common/card_widget.dart';
 import '../widgets/charts/bar_chart_widget.dart';
@@ -18,7 +19,7 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  final StorageService _storageService = StorageService.instance;
+  // Using FirebaseDataProvider instead of StorageService
 
   String _selectedPeriod = 'monthly';
   String _selectedClient = 'all';
@@ -45,9 +46,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final users = await _storageService.getUsers();
-      final transactions = await _storageService.getTransactions();
-      final userSchemes = await _storageService.getUserSchemes();
+      final dataProvider = context.read<FirebaseDataProvider>();
+      // Don't call initializeData here as it causes setState during build
+      
+      final users = dataProvider.users;
+      final transactions = dataProvider.transactions;
+      final userSchemes = dataProvider.userSchemes;
 
       if (mounted) {
       setState(() {

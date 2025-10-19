@@ -6,7 +6,7 @@ import '../models/transaction.dart';
 import '../models/user_scheme.dart';
 import '../services/storage_service.dart';
 import '../widgets/common/card_widget.dart';
-import '../providers/data_provider.dart';
+import '../providers/firebase_data_provider.dart';
 
 class BonusScreen extends StatefulWidget {
   const BonusScreen({super.key});
@@ -32,7 +32,7 @@ class _BonusScreenState extends State<BonusScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
       final users = dataProvider.users;
       final transactions = dataProvider.transactions;
 
@@ -858,7 +858,7 @@ class _BonusScreenState extends State<BonusScreen> {
     final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
     
     // Get user scheme information
-    final dataProvider = Provider.of<DataProvider>(context, listen: false);
+    final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
     final userSchemes = dataProvider.userSchemes;
     UserScheme? userScheme;
     try {

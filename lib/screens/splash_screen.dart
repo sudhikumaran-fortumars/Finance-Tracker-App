@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/simple_auth_service.dart';
-import 'simple_auth_screen.dart';
-import '../main.dart';
+import '../services/app_auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -54,20 +52,20 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     try {
-      if (SimpleAuthService.isLoggedIn) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MainApp()),
-        );
+      // Initialize the app with default users
+      await AppAuthService.instance.initializeApp();
+      
+      // Check if user is already logged in
+      final isLoggedIn = await AppAuthService.instance.checkLoginState();
+      
+      if (isLoggedIn) {
+        Navigator.of(context).pushReplacementNamed('/main');
       } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const SimpleAuthScreen()),
-        );
+        Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
-      // If there's an error, go to auth screen
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const SimpleAuthScreen()),
-      );
+      // If there's an error, go to login screen
+      Navigator.of(context).pushReplacementNamed('/login');
     }
   }
 

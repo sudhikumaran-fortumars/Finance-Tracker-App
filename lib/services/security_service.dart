@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,14 +17,6 @@ class SecurityService {
   // Initialize encryption
   Future<void> initialize() async {
     // Generate or retrieve encryption key
-    await _initializeEncryptionKey();
-    
-    // Initialize encrypter
-    _encrypter = Encrypter(AES(_key));
-  }
-
-  // Initialize encryption key
-  Future<void> _initializeEncryptionKey() async {
     final prefs = await SharedPreferences.getInstance();
     String? keyString = prefs.getString('encryption_key');
     
@@ -38,133 +29,51 @@ class SecurityService {
     
     _key = Key.fromBase64(keyString);
     _iv = IV.fromSecureRandom(16);
+    _encrypter = Encrypter(AES(_key));
   }
 
-  // ==================== ENCRYPTION ====================
-
-  /// Encrypt sensitive data
+  // Encrypt data
   String encryptData(String data) {
-    try {
-      final encrypted = _encrypter.encrypt(data, iv: _iv);
-      return encrypted.base64;
-    } catch (e) {
-      throw Exception('Failed to encrypt data: $e');
-    }
+    final encrypted = _encrypter.encrypt(data, iv: _iv);
+    return encrypted.base64;
   }
 
-  /// Decrypt sensitive data
+  // Decrypt data
   String decryptData(String encryptedData) {
-    try {
-      final encrypted = Encrypted.fromBase64(encryptedData);
-      return _encrypter.decrypt(encrypted, iv: _iv);
-    } catch (e) {
-      throw Exception('Failed to decrypt data: $e');
-    }
+    final encrypted = Encrypted.fromBase64(encryptedData);
+    return _encrypter.decrypt(encrypted, iv: _iv);
   }
 
-  /// Encrypt user data
-  Map<String, dynamic> encryptUserData(Map<String, dynamic> userData) {
-    final encryptedData = <String, dynamic>{};
-    
-    // Encrypt sensitive fields
-    final sensitiveFields = ['name', 'mobileNumber', 'address'];
-    
-    for (final entry in userData.entries) {
-      if (sensitiveFields.contains(entry.key)) {
-        encryptedData[entry.key] = encryptData(entry.value.toString());
-      } else {
-        encryptedData[entry.key] = entry.value;
-      }
-    }
-    
-    return encryptedData;
+  // Generate secure key
+  String generateKey() {
+    final key = Key.fromSecureRandom(32);
+    return key.base64;
   }
 
-  /// Decrypt user data
-  Map<String, dynamic> decryptUserData(Map<String, dynamic> encryptedData) {
-    final decryptedData = <String, dynamic>{};
-    
-    // Decrypt sensitive fields
-    final sensitiveFields = ['name', 'mobileNumber', 'address'];
-    
-    for (final entry in encryptedData.entries) {
-      if (sensitiveFields.contains(entry.key)) {
-        try {
-          decryptedData[entry.key] = decryptData(entry.value.toString());
-        } catch (e) {
-          // If decryption fails, use original value (might be unencrypted)
-          decryptedData[entry.key] = entry.value;
-        }
-      } else {
-        decryptedData[entry.key] = entry.value;
-      }
-    }
-    
-    return decryptedData;
-  }
-
-  // ==================== HASHING ====================
-
-  /// Hash password
+  // Hash password
   String hashPassword(String password) {
     final bytes = utf8.encode(password);
     final digest = sha256.convert(bytes);
     return digest.toString();
   }
 
-  /// Hash sensitive data
-  String hashData(String data) {
-    final bytes = utf8.encode(data);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
+  // Verify password
+  bool verifyPassword(String password, String hashedPassword) {
+    return hashPassword(password) == hashedPassword;
   }
 
-  /// Generate secure token
-  String generateSecureToken() {
-    final random = DateTime.now().millisecondsSinceEpoch.toString();
-    final bytes = utf8.encode(random);
-    final digest = sha256.convert(bytes);
-    return digest.toString().substring(0, 32);
-  }
-
-  // ==================== VALIDATION ====================
-
-  /// Validate email format
-  bool isValidEmail(String email) {
-    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-    return emailRegex.hasMatch(email);
-  }
-
-  /// Validate phone number format
-  bool isValidPhoneNumber(String phoneNumber) {
-    final phoneRegex = RegExp(r'^[6-9]\d{9}$');
-    return phoneRegex.hasMatch(phoneNumber);
-  }
-
-  /// Validate password strength
-  bool isStrongPassword(String password) {
-    // At least 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special character
-    final passwordRegex = RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$');
-    return passwordRegex.hasMatch(password);
-  }
-
-  /// Validate amount format
-  bool isValidAmount(String amount) {
-    final amountRegex = RegExp(r'^\d+(\.\d{1,2})?$');
-    return amountRegex.hasMatch(amount);
-  }
-
-  // ==================== SANITIZATION ====================
-
-  /// Sanitize input data
+  // Sanitize input
   String sanitizeInput(String input) {
     return input
         .trim()
-        .replaceAll(RegExp(r'[<>"\']'), '') // Remove potentially dangerous characters
+        .replaceAll('<', '') // Remove potentially dangerous characters
+        .replaceAll('>', '')
+        .replaceAll('"', '')
+        .replaceAll("'", '')
         .replaceAll(RegExp(r'\s+'), ' '); // Replace multiple spaces with single space
   }
 
-  /// Sanitize user input
+  // Sanitize user input
   Map<String, dynamic> sanitizeUserInput(Map<String, dynamic> input) {
     final sanitized = <String, dynamic>{};
     
@@ -179,165 +88,137 @@ class SecurityService {
     return sanitized;
   }
 
-  // ==================== SECURITY CHECKS ====================
+  // Validate email
+  bool isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
 
-  /// Check for SQL injection patterns
-  bool containsSQLInjection(String input) {
-    final sqlPatterns = [
-      r'(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)',
-      r'(\b(OR|AND)\s+\d+\s*=\s*\d+)',
-      r'(\b(OR|AND)\s+\w+\s*=\s*\w+)',
-      r'(\b(OR|AND)\s+\w+\s*LIKE\s*[\'"])',
-      r'(\b(OR|AND)\s+\w+\s*IN\s*[\'"])',
-      r'(\b(OR|AND)\s+\w+\s*BETWEEN\s+\d+\s+AND\s+\d+)',
-      r'(\b(OR|AND)\s+\w+\s*IS\s+NULL)',
-      r'(\b(OR|AND)\s+\w+\s*IS\s+NOT\s+NULL)',
-    ];
+  // Validate phone number
+  bool isValidPhone(String phone) {
+    return RegExp(r'^\+?[\d\s\-\(\)]{10,}$').hasMatch(phone);
+  }
+
+  // Generate secure token
+  String generateSecureToken() {
+    final random = Key.fromSecureRandom(32);
+    return random.base64;
+  }
+
+  // Encrypt sensitive fields
+  Map<String, dynamic> encryptSensitiveFields(Map<String, dynamic> data) {
+    final encrypted = Map<String, dynamic>.from(data);
     
-    for (final pattern in sqlPatterns) {
-      if (RegExp(pattern, caseSensitive: false).hasMatch(input)) {
-        return true;
+    // Encrypt sensitive fields
+    const sensitiveFields = ['password', 'ssn', 'creditCard', 'bankAccount'];
+    
+    for (final field in sensitiveFields) {
+      if (encrypted.containsKey(field) && encrypted[field] is String) {
+        encrypted[field] = encryptData(encrypted[field]);
       }
     }
     
-    return false;
+    return encrypted;
   }
 
-  /// Check for XSS patterns
-  bool containsXSS(String input) {
-    final xssPatterns = [
-      r'<script[^>]*>.*?</script>',
-      r'<iframe[^>]*>.*?</iframe>',
-      r'<object[^>]*>.*?</object>',
-      r'<embed[^>]*>.*?</embed>',
-      r'<link[^>]*>.*?</link>',
-      r'<meta[^>]*>.*?</meta>',
-      r'javascript:',
-      r'vbscript:',
-      r'onload\s*=',
-      r'onerror\s*=',
-      r'onclick\s*=',
-      r'onmouseover\s*=',
-    ];
+  // Decrypt sensitive fields
+  Map<String, dynamic> decryptSensitiveFields(Map<String, dynamic> data) {
+    final decrypted = Map<String, dynamic>.from(data);
     
-    for (final pattern in xssPatterns) {
-      if (RegExp(pattern, caseSensitive: false).hasMatch(input)) {
-        return true;
+    // Decrypt sensitive fields
+    const sensitiveFields = ['password', 'ssn', 'creditCard', 'bankAccount'];
+    
+    for (final field in sensitiveFields) {
+      if (decrypted.containsKey(field) && decrypted[field] is String) {
+        try {
+          decrypted[field] = decryptData(decrypted[field]);
+        } catch (e) {
+          // If decryption fails, keep original value
+          print('Failed to decrypt field $field: $e');
+        }
       }
     }
     
-    return false;
+    return decrypted;
   }
 
-  /// Validate input security
-  bool isSecureInput(String input) {
-    return !containsSQLInjection(input) && !containsXSS(input);
+  // Check if data is encrypted
+  bool isEncrypted(String data) {
+    try {
+      // Try to decode as base64
+      base64Decode(data);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  // ==================== AUDIT LOGGING ====================
-
-  /// Log security event
-  Future<void> logSecurityEvent({
-    required String eventType,
-    required String userId,
-    required String description,
-    Map<String, dynamic>? metadata,
-  }) async {
-    final auditLog = {
-      'event_type': eventType,
-      'user_id': userId,
-      'description': description,
-      'timestamp': DateTime.now().toIso8601String(),
-      'metadata': metadata ?? {},
-    };
-    
-    // Store audit log securely
+  // Secure data storage
+  Future<void> storeSecureData(String key, String value) async {
     final prefs = await SharedPreferences.getInstance();
-    final existingLogs = prefs.getStringList('audit_logs') ?? [];
-    existingLogs.add(jsonEncode(auditLog));
-    
-    // Keep only last 1000 logs
-    if (existingLogs.length > 1000) {
-      existingLogs.removeRange(0, existingLogs.length - 1000);
-    }
-    
-    await prefs.setStringList('audit_logs', existingLogs);
+    final encrypted = encryptData(value);
+    await prefs.setString('secure_$key', encrypted);
   }
 
-  /// Get audit logs
-  Future<List<Map<String, dynamic>>> getAuditLogs() async {
+  // Retrieve secure data
+  Future<String?> getSecureData(String key) async {
     final prefs = await SharedPreferences.getInstance();
-    final logs = prefs.getStringList('audit_logs') ?? [];
+    final encrypted = prefs.getString('secure_$key');
     
-    return logs.map((log) => jsonDecode(log) as Map<String, dynamic>).toList();
-  }
-
-  // ==================== DATA PROTECTION ====================
-
-  /// Mask sensitive data for display
-  String maskSensitiveData(String data, {int visibleChars = 4}) {
-    if (data.length <= visibleChars) {
-      return '*' * data.length;
+    if (encrypted != null) {
+      try {
+        return decryptData(encrypted);
+      } catch (e) {
+        print('Failed to decrypt secure data for key $key: $e');
+        return null;
+      }
     }
     
-    final visible = data.substring(0, visibleChars);
-    final masked = '*' * (data.length - visibleChars);
-    return visible + masked;
+    return null;
   }
 
-  /// Mask phone number
-  String maskPhoneNumber(String phoneNumber) {
-    if (phoneNumber.length < 4) {
-      return '*' * phoneNumber.length;
+  // Clear secure data
+  Future<void> clearSecureData(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('secure_$key');
+  }
+
+  // Clear all secure data
+  Future<void> clearAllSecureData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    
+    for (final key in keys) {
+      if (key.startsWith('secure_')) {
+        await prefs.remove(key);
+      }
     }
-    
-    final visible = phoneNumber.substring(phoneNumber.length - 4);
-    final masked = '*' * (phoneNumber.length - 4);
-    return masked + visible;
   }
 
-  /// Mask email
-  String maskEmail(String email) {
-    final parts = email.split('@');
-    if (parts.length != 2) return email;
+  // Security audit log
+  Future<void> logSecurityEvent(String event, Map<String, dynamic>? details) async {
+    final timestamp = DateTime.now().toIso8601String();
+    // final logEntry = {
+    //   'timestamp': timestamp,
+    //   'event': event,
+    //   'details': details,
+    // };
     
-    final username = parts[0];
-    final domain = parts[1];
-    
-    if (username.length <= 2) {
-      return '*' * username.length + '@' + domain;
+    print('Security Event: $event at $timestamp');
+    if (details != null) {
+      print('Details: $details');
     }
-    
-    final visible = username.substring(0, 2);
-    final masked = '*' * (username.length - 2);
-    return visible + masked + '@' + domain;
   }
 
-  // ==================== SECURITY POLICIES ====================
-
-  /// Check password policy
-  Map<String, bool> checkPasswordPolicy(String password) {
-    return {
-      'length': password.length >= 8,
-      'uppercase': RegExp(r'[A-Z]').hasMatch(password),
-      'lowercase': RegExp(r'[a-z]').hasMatch(password),
-      'number': RegExp(r'\d').hasMatch(password),
-      'special': RegExp(r'[@$!%*?&]').hasMatch(password),
-    };
+  // Validate data integrity
+  bool validateDataIntegrity(Map<String, dynamic> data, String checksum) {
+    final jsonString = jsonEncode(data);
+    final calculatedChecksum = hashPassword(jsonString);
+    return calculatedChecksum == checksum;
   }
 
-  /// Check session security
-  bool isSessionSecure() {
-    // Check if session is still valid
-    // This would typically check against a server-side session store
-    return true; // Simplified for now
-  }
-
-  /// Generate secure session token
-  String generateSessionToken() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    final random = (DateTime.now().microsecondsSinceEpoch % 1000000).toString();
-    final data = timestamp + random;
-    return hashData(data);
+  // Generate data checksum
+  String generateDataChecksum(Map<String, dynamic> data) {
+    final jsonString = jsonEncode(data);
+    return hashPassword(jsonString);
   }
 }

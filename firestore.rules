@@ -1,0 +1,282 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==================== USER RULES ====================
+    
+    // Users collection - allow read/write for authenticated users
+    match /users/{userId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // User schemes - allow read/write for authenticated users
+    match /userSchemes/{schemeId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Transactions - allow read/write for authenticated users
+    match /transactions/{transactionId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Schemes - allow read for all, write for authenticated users
+    match /schemes/{schemeId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // ==================== APP USER RULES ====================
+    
+    // App users (owner/staff) - only allow read for authenticated users
+    match /appUsers/{appUserId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (request.auth.uid == appUserId || 
+         get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.role == 'owner');
+    }
+    
+    // ==================== NOTIFICATION RULES ====================
+    
+    // Notifications - allow read/write for authenticated users
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ==================== REPORT RULES ====================
+    
+    // Reports - allow read/write for authenticated users
+    match /reports/{reportId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ==================== WHATSAPP MESSAGE RULES ====================
+    
+    // WhatsApp messages - allow read/write for authenticated users
+    match /whatsappMessages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ==================== ANALYTICS RULES ====================
+    
+    // Analytics - allow write for authenticated users, read for owners only
+    match /analytics/{analyticsId} {
+      allow write: if request.auth != null;
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    // ==================== BACKUP RULES ====================
+    
+    // Backups - only allow read/write for owners
+    match /backups/{backupId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    // ==================== SYSTEM RULES ====================
+    
+    // System settings - only allow read/write for owners
+    match /system/{settingId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    // ==================== AUDIT LOG RULES ====================
+    
+    // Audit logs - allow write for authenticated users, read for owners only
+    match /auditLogs/{logId} {
+      allow write: if request.auth != null;
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    // ==================== HELPER FUNCTIONS ====================
+    
+    // Function to check if user is owner
+    function isOwner() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    // Function to check if user is staff
+    function isStaff() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.role == 'staff';
+    }
+    
+    // Function to check if user is active
+    function isActiveUser() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.isActive == true;
+    }
+    
+    // Function to check if user can access resource
+    function canAccessResource(resourceUserId) {
+      return request.auth != null && 
+        (request.auth.uid == resourceUserId || isOwner());
+    }
+    
+    // ==================== VALIDATION RULES ====================
+    
+    // Validate user data structure
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email', 'mobileNumber', 'createdAt']) &&
+        data.name is string &&
+        data.email is string &&
+        data.mobileNumber is string &&
+        data.createdAt is timestamp;
+    }
+    
+    // Validate transaction data structure
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['userId', 'amount', 'date', 'paymentMode']) &&
+        data.userId is string &&
+        data.amount is number &&
+        data.date is timestamp &&
+        data.paymentMode is string;
+    }
+    
+    // Validate scheme data structure
+    function isValidScheme(data) {
+      return data.keys().hasAll(['userId', 'schemeType', 'totalAmount', 'startDate']) &&
+        data.userId is string &&
+        data.schemeType is string &&
+        data.totalAmount is number &&
+        data.startDate is timestamp;
+    }
+    
+    // ==================== ENHANCED RULES WITH VALIDATION ====================
+    
+    // Enhanced user rules with validation
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isValidUser(request.resource.data);
+      allow update: if request.auth != null && isValidUser(request.resource.data);
+      allow delete: if isOwner();
+    }
+    
+    // Enhanced transaction rules with validation
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isValidTransaction(request.resource.data);
+      allow update: if request.auth != null && isValidTransaction(request.resource.data);
+      allow delete: if isOwner();
+    }
+    
+    // Enhanced scheme rules with validation
+    match /userSchemes/{schemeId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isValidScheme(request.resource.data);
+      allow update: if request.auth != null && isValidScheme(request.resource.data);
+      allow delete: if isOwner();
+    }
+    
+    // ==================== RATE LIMITING RULES ====================
+    
+    // Rate limiting for write operations
+    match /rateLimits/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ==================== BACKUP AND RESTORE RULES ====================
+    
+    // Backup operations - only for owners
+    match /backups/{backupId} {
+      allow read, write: if isOwner() && isActiveUser();
+    }
+    
+    // Restore operations - only for owners
+    match /restores/{restoreId} {
+      allow read, write: if isOwner() && isActiveUser();
+    }
+    
+    // ==================== EXPORT RULES ====================
+    
+    // Export operations - only for owners
+    match /exports/{exportId} {
+      allow read, write: if isOwner() && isActiveUser();
+    }
+    
+    // ==================== INTEGRATION RULES ====================
+    
+    // WhatsApp integration - allow for authenticated users
+    match /whatsappConfig/{configId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Email integration - allow for authenticated users
+    match /emailConfig/{configId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // SMS integration - allow for authenticated users
+    match /smsConfig/{configId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ==================== MONITORING RULES ====================
+    
+    // Performance monitoring - allow write for all, read for owners
+    match /performance/{metricId} {
+      allow write: if request.auth != null;
+      allow read: if isOwner();
+    }
+    
+    // Error logging - allow write for all, read for owners
+    match /errors/{errorId} {
+      allow write: if request.auth != null;
+      allow read: if isOwner();
+    }
+    
+    // ==================== FEATURE FLAGS ====================
+    
+    // Feature flags - only owners can modify
+    match /featureFlags/{flagId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner();
+    }
+    
+    // ==================== TEMPLATES ====================
+    
+    // Message templates - allow read for all, write for owners
+    match /templates/{templateId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner();
+    }
+    
+    // ==================== CUSTOM FIELDS ====================
+    
+    // Custom fields - allow read/write for authenticated users
+    match /customFields/{fieldId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ==================== WORKFLOWS ====================
+    
+    // Workflow definitions - only owners can modify
+    match /workflows/{workflowId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner();
+    }
+    
+    // Workflow instances - allow read/write for authenticated users
+    match /workflowInstances/{instanceId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ==================== INTEGRATIONS ====================
+    
+    // Third-party integrations - only owners can configure
+    match /integrations/{integrationId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner();
+    }
+    
+    // Integration logs - allow read for owners, write for all
+    match /integrationLogs/{logId} {
+      allow write: if request.auth != null;
+      allow read: if isOwner();
+    }
+  }
+}
+

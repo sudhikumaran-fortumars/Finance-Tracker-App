@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../models/user.dart';
 import '../models/address.dart';
-import '../services/storage_service.dart';
+import '../providers/firebase_data_provider.dart';
+import 'package:provider/provider.dart';
 import '../utils/calculations.dart';
 
 class PaymentHandlingScreen extends StatefulWidget {
@@ -14,7 +15,6 @@ class PaymentHandlingScreen extends StatefulWidget {
 
 class _PaymentHandlingScreenState extends State<PaymentHandlingScreen>
     with TickerProviderStateMixin {
-  final StorageService _storageService = StorageService.instance;
   final TextEditingController _searchController = TextEditingController();
 
   List<Transaction> _transactions = [];
@@ -50,8 +50,10 @@ class _PaymentHandlingScreenState extends State<PaymentHandlingScreen>
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final transactions = await _storageService.getTransactions();
-      final users = await _storageService.getUsers();
+      final dataProvider = context.read<FirebaseDataProvider>();
+      await dataProvider.initializeData(); // Ensure data is loaded
+      final transactions = dataProvider.transactions;
+      final users = dataProvider.users;
 
       setState(() {
         _transactions = transactions;

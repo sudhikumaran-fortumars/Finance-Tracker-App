@@ -1,6 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:flutter/foundation.dart';
 
 class AnalyticsService {
   static final AnalyticsService _instance = AnalyticsService._internal();
@@ -231,7 +230,7 @@ class AnalyticsService {
       name: 'search_performed',
       parameters: {
         'search_term': searchTerm,
-        'search_type': search_type,
+        'search_type': 'user_search',
         'result_count': resultCount,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       },
@@ -248,7 +247,7 @@ class AnalyticsService {
   }) async {
     await _crashlytics.recordError(
       errorMessage,
-      stackTrace,
+      stackTrace != null ? StackTrace.fromString(stackTrace) : null,
       fatal: false,
     );
 
@@ -269,7 +268,7 @@ class AnalyticsService {
   }) async {
     await _crashlytics.recordError(
       errorMessage,
-      stackTrace,
+      StackTrace.fromString(stackTrace),
       fatal: true,
     );
   }
@@ -321,7 +320,7 @@ class AnalyticsService {
   }) async {
     await _analytics.logEvent(
       name: eventName,
-      parameters: parameters,
+      parameters: parameters?.cast<String, Object>(),
     );
   }
 

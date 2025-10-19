@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../models/address.dart';
 import '../models/scheme_type.dart';
 import '../models/user_scheme.dart';
 import '../models/transaction.dart';
-import '../services/storage_service.dart';
+import '../providers/firebase_data_provider.dart';
 import '../services/indian_address_service.dart';
 import '../widgets/common/card_widget.dart';
 import '../widgets/common/button_widget.dart';
@@ -18,7 +19,7 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  final StorageService _storageService = StorageService.instance;
+  // Using context.read<FirebaseDataProvider>() in methods instead of instance variable
   final TextEditingController _searchController = TextEditingController();
   List<User> _users = [];
   List<User> _filteredUsers = [];
@@ -28,7 +29,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUsers();
+    // Use post-frame callback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUsers();
+    });
   }
 
   @override
@@ -40,10 +44,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Future<void> _loadUsers() async {
     setState(() => _isLoading = true);
     try {
-      final users = await _storageService.getUsers();
+      final dataProvider = context.read<FirebaseDataProvider>();
+      // Don't call initializeData here as it causes setState during build
       setState(() {
-        _users = users;
-        _filteredUsers = users;
+        _users = dataProvider.users;
+        _filteredUsers = dataProvider.users;
       });
     } finally {
       setState(() => _isLoading = false);
@@ -354,7 +359,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       barrierDismissible: false,
       builder: (context) => _UserFormDialog(
         onSave: (user) async {
-          await _storageService.saveUser(user);
+          final dataProvider = context.read<FirebaseDataProvider>();
+          await dataProvider.addUser(user);
           _loadUsers();
         },
       ),
@@ -367,7 +373,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       builder: (context) => _UserFormDialog(
         user: user,
         onSave: (updatedUser) async {
-          await _storageService.saveUser(updatedUser);
+          final dataProvider = context.read<FirebaseDataProvider>();
+          await dataProvider.updateUser(updatedUser);
+          _loadUsers();
+        },
+        onDelete: (userToDelete) async {
+          final dataProvider = context.read<FirebaseDataProvider>();
+          await dataProvider.deleteUser(userToDelete.id);
           _loadUsers();
         },
       ),
@@ -385,8 +397,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 class _UserFormDialog extends StatefulWidget {
   final User? user;
   final Function(User) onSave;
+  final Function(User)? onDelete;
 
-  const _UserFormDialog({this.user, required this.onSave});
+  const _UserFormDialog({this.user, required this.onSave, this.onDelete});
 
   @override
   State<_UserFormDialog> createState() => _UserFormDialogState();
@@ -478,8 +491,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
 
   Future<void> _loadNextCustomerNumber() async {
     try {
-      final storageService = StorageService.instance;
-      final nextNumber = await storageService.generateNextSerialNumber();
+      final dataProvider = context.read<FirebaseDataProvider>();
+      final nextNumber = await dataProvider.generateNextSerialNumber();
       setState(() {
         _nextCustomerNumber = nextNumber;
       });
@@ -655,12 +668,12 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                       const SizedBox(height: 16),
                       // State Selection
                       DropdownButtonFormField<String>(
-                        initialValue: _selectedState,
+                        value: _availableStates.contains(_selectedState) ? _selectedState : null,
                         decoration: const InputDecoration(
                           labelText: 'State',
                           border: OutlineInputBorder(),
                         ),
-                        items: _availableStates.map((state) {
+                        items: _availableStates.isEmpty ? [] : _availableStates.map((state) {
                           return DropdownMenuItem(
                             value: state,
                             child: Text(state),
@@ -671,12 +684,12 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                       const SizedBox(height: 16),
                       // District Selection
                       DropdownButtonFormField<String>(
-                        initialValue: _selectedDistrict,
+                        value: _availableDistricts.contains(_selectedDistrict) ? _selectedDistrict : null,
                         decoration: const InputDecoration(
                           labelText: 'District',
                           border: OutlineInputBorder(),
                         ),
-                        items: _availableDistricts.map((district) {
+                        items: _availableDistricts.isEmpty ? [] : _availableDistricts.map((district) {
                           return DropdownMenuItem(
                             value: district,
                             child: Text(district),
@@ -740,12 +753,12 @@ class _UserFormDialogState extends State<_UserFormDialog> {
               if (_assignScheme) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<SchemeType>(
-                  initialValue: _selectedScheme,
+                  value: _selectedScheme != null && _availableSchemes.any((s) => s.id == _selectedScheme!.id) ? _selectedScheme : null,
                   decoration: const InputDecoration(
                     labelText: 'Select Scheme',
                     border: OutlineInputBorder(),
                   ),
-                  items: _availableSchemes.map((scheme) {
+                  items: _availableSchemes.isEmpty ? [] : _availableSchemes.map((scheme) {
                     return DropdownMenuItem(
                       value: scheme,
                       child: Text(scheme.name),
@@ -835,6 +848,15 @@ class _UserFormDialogState extends State<_UserFormDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
+        if (widget.user != null && widget.onDelete != null) ...[
+          TextButton(
+            onPressed: _isLoading ? null : _deleteUser,
+            child: Text(
+              'Delete',
+              style: TextStyle(color: Colors.red[600]),
+            ),
+          ),
+        ],
         ButtonWidget(
           text: widget.user == null ? 'Add User' : 'Update User',
           isLoading: _isLoading,
@@ -1001,8 +1023,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
       String serialNumber;
       if (widget.user == null) {
         // New user - generate serial number
-        final storageService = StorageService.instance;
-        serialNumber = await storageService.generateNextSerialNumber();
+        final dataProvider = context.read<FirebaseDataProvider>();
+        serialNumber = await dataProvider.generateNextSerialNumber();
       } else {
         // Existing user - keep current serial number
         serialNumber = widget.user!.serialNumber;
@@ -1041,8 +1063,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
           status: SchemeStatus.active,
         );
 
-        final storageService = StorageService.instance;
-        await storageService.saveUserScheme(userScheme);
+        final dataProvider = context.read<FirebaseDataProvider>();
+        await dataProvider.addUserScheme(userScheme);
       }
 
       if (mounted) {
@@ -1071,6 +1093,63 @@ class _UserFormDialogState extends State<_UserFormDialog> {
       setState(() => _isLoading = false);
     }
   }
+
+  Future<void> _deleteUser() async {
+    if (widget.user == null || widget.onDelete == null) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete User'),
+        content: Text(
+          'Are you sure you want to delete ${widget.user!.name}? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+
+      try {
+        await widget.onDelete!(widget.user!);
+        
+        if (mounted) {
+          Navigator.of(context).pop(); // Close the edit dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${widget.user!.name} has been deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting user: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
 }
 
 class _UserDetailsDialog extends StatefulWidget {
@@ -1083,7 +1162,7 @@ class _UserDetailsDialog extends StatefulWidget {
 }
 
 class _UserDetailsDialogState extends State<_UserDetailsDialog> {
-  final StorageService _storageService = StorageService.instance;
+  // Using context.read<FirebaseDataProvider>() in methods instead of instance variable
   List<UserScheme> _userSchemes = [];
   List<Transaction> _userTransactions = [];
   bool _isLoading = true;
@@ -1109,8 +1188,9 @@ class _UserDetailsDialogState extends State<_UserDetailsDialog> {
   Future<void> _refreshUserData() async {
     setState(() => _isLoading = true);
     try {
-      final schemes = await _storageService.getUserSchemes();
-      final transactions = await _storageService.getTransactions();
+      final dataProvider = context.read<FirebaseDataProvider>();
+      final schemes = await dataProvider.getUserSchemes();
+      final transactions = await dataProvider.getTransactions();
       
       setState(() {
         _userSchemes = schemes.where((scheme) => scheme.userId == widget.user.id).toList();
@@ -1132,8 +1212,9 @@ class _UserDetailsDialogState extends State<_UserDetailsDialog> {
 
   Future<void> _loadUserData() async {
     try {
-      final schemes = await _storageService.getUserSchemes();
-      final transactions = await _storageService.getTransactions();
+      final dataProvider = context.read<FirebaseDataProvider>();
+      final schemes = await dataProvider.getUserSchemes();
+      final transactions = await dataProvider.getTransactions();
       
       setState(() {
         _userSchemes = schemes.where((scheme) => scheme.userId == widget.user.id).toList();

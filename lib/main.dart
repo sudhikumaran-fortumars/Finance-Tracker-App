@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 import 'providers/navigation_provider.dart';
 import 'providers/theme_provider.dart';
-import 'providers/data_provider.dart';
-import 'screens/splash_screen.dart';
-import 'screens/simple_auth_screen.dart';
-import 'services/simple_auth_service.dart';
+import 'providers/firebase_data_provider.dart';
+import 'screens/login_screen.dart';
+import 'screens/user_profile_screen.dart';
+import 'screens/simple_main_screen.dart';
+import 'services/app_auth_service.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/user_management_screen.dart';
 import 'screens/daily_entry_screen.dart';
@@ -15,7 +18,12 @@ import 'screens/payment_handling_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/bonus_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   runApp(const MyApp());
 }
 
@@ -28,7 +36,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => DataProvider()),
+        ChangeNotifierProvider(create: (_) => FirebaseDataProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -40,7 +48,12 @@ class MyApp extends StatelessWidget {
             themeMode: themeProvider.isDarkMode
                 ? ThemeMode.dark
                 : ThemeMode.light,
-            home: const SplashScreen(),
+            home: const SimpleMainScreen(),
+            routes: {
+              '/login': (context) => const LoginScreen(),
+              '/main': (context) => const MainApp(),
+              '/profile': (context) => const UserProfileScreen(),
+            },
           );
         },
       ),
@@ -75,11 +88,23 @@ class MainApp extends StatelessWidget {
               ),
               PopupMenuButton<String>(
                 onSelected: (value) async {
-                  if (value == 'logout') {
+                  if (value == 'profile') {
+                    Navigator.pushNamed(context, '/profile');
+                  } else if (value == 'logout') {
                     await _logout(context);
                   }
                 },
                 itemBuilder: (context) => [
+                  const PopupMenuItem<String>(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_rounded),
+                        SizedBox(width: 8),
+                        Text('Profile'),
+                      ],
+                    ),
+                  ),
                   const PopupMenuItem<String>(
                     value: 'logout',
                     child: Row(
@@ -166,41 +191,56 @@ class MainApp extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.dashboard,
-                Icons.dashboard_rounded,
-                'Dashboard',
-              ),
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.users,
-                Icons.people_rounded,
-                'Users',
-              ),
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.entry,
-                Icons.add_card_rounded,
-                'Entry',
-              ),
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.reports,
-                Icons.analytics_rounded,
-                'Reports',
-              ),
-              _buildMoreButton(context, navigationProvider),
-            ],
+            children: _buildNavigationItems(context, navigationProvider),
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildNavigationItems(
+    BuildContext context,
+    NavigationProvider navigationProvider,
+  ) {
+    final items = <Widget>[];
+
+    // All features available to both users
+    items.add(_buildNavItem(
+      context,
+      navigationProvider,
+      ViewId.dashboard,
+      Icons.dashboard_rounded,
+      'Dashboard',
+    ));
+
+    items.add(_buildNavItem(
+      context,
+      navigationProvider,
+      ViewId.users,
+      Icons.people_rounded,
+      'Users',
+    ));
+
+    items.add(_buildNavItem(
+      context,
+      navigationProvider,
+      ViewId.entry,
+      Icons.add_card_rounded,
+      'Entry',
+    ));
+
+    items.add(_buildNavItem(
+      context,
+      navigationProvider,
+      ViewId.reports,
+      Icons.analytics_rounded,
+      'Reports',
+    ));
+
+    // More button for additional options
+    items.add(_buildMoreButton(context, navigationProvider));
+
+    return items;
   }
 
   Widget _buildNavItem(
@@ -450,11 +490,11 @@ class MainApp extends StatelessWidget {
 
   Future<void> _logout(BuildContext context) async {
     try {
-      SimpleAuthService.signOut();
+      await AppAuthService.instance.logout();
       
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const SimpleAuthScreen()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
         );
       }

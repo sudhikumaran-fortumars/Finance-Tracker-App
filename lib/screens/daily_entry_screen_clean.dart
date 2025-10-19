@@ -8,7 +8,7 @@ import '../models/scheme_type.dart';
 import '../utils/calculations.dart';
 import '../widgets/common/card_widget.dart';
 import '../widgets/common/button_widget.dart';
-import '../providers/firebase_data_provider.dart';
+import '../providers/data_provider.dart';
 import '../services/storage_service.dart';
 import '../services/whatsapp_service.dart';
 
@@ -53,7 +53,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        context.read<FirebaseDataProvider>().initializeData();
+        context.read<DataProvider>().initializeData();
         _loadUserData();
       } catch (e) {
         // Handle initialization error silently
@@ -64,8 +64,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      // Get data from FirebaseDataProvider instead of directly from storage
-      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
+      // Get data from DataProvider instead of directly from storage
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
       final transactions = dataProvider.transactions;
       
@@ -86,7 +86,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       if (query.isEmpty) {
         _filteredUsers = [];
       } else {
-        final dataProvider = context.read<FirebaseDataProvider>();
+        final dataProvider = context.read<DataProvider>();
         if (dataProvider.users.isNotEmpty) {
           _filteredUsers = dataProvider.users.where((user) {
             return user.name.toLowerCase().contains(query.toLowerCase()) ||
@@ -125,8 +125,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   void _autoFillWeeklyAmount(User user) {
     try {
-      // Get user schemes from FirebaseDataProvider
-      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
+      // Get user schemes from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
       
       // Find user's scheme to get weekly amount
@@ -189,8 +189,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   double _calculateOverdueAmount(String userId) {
     try {
-      // Get user schemes and user data from FirebaseDataProvider
-      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
+      // Get user schemes and user data from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
       final users = dataProvider.users;
       
@@ -216,7 +216,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       final weeklyAmount = userScheme.totalAmount / 52;
       
       // Get all transactions for this user
-      final allTransactions = Provider.of<FirebaseDataProvider>(context, listen: false).transactions;
+      final allTransactions = Provider.of<DataProvider>(context, listen: false).transactions;
       final userTransactions = allTransactions.where((t) => t.userId == userId).toList();
       
       // Calculate the first due date (7 days after joining)
@@ -263,8 +263,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   DateTime? _calculateNextDueDate(String userId) {
     try {
-      // Get user schemes and user data from FirebaseDataProvider
-      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
+      // Get user schemes and user data from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
       final users = dataProvider.users;
       
@@ -334,7 +334,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       });
 
       try {
-        final dataProvider = context.read<FirebaseDataProvider>();
+        final dataProvider = context.read<DataProvider>();
         final amount = double.parse(_amountController.text);
         
         // Calculate bonus based on 7-day rule
@@ -446,7 +446,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       _loadUserData();
     });
     
-    return Consumer<FirebaseDataProvider>(
+    return Consumer<DataProvider>(
       builder: (context, dataProvider, child) {
         final theme = Theme.of(context);
         final isDark = theme.brightness == Brightness.dark;
@@ -597,6 +597,39 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                                     
                                     // WhatsApp Buttons
                                     if (_selectedUser != null) ...[
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSaving ? null : _sendManualWhatsAppMessage,
+                                          icon: const Icon(Icons.message_rounded),
+                                          label: const Text('Send WhatsApp Message'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(0xFF25D366),
+                                            side: const BorderSide(color: Color(0xFF25D366)),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSaving ? null : _testWhatsApp,
+                                          icon: const Icon(Icons.bug_report),
+                                          label: const Text('Test WhatsApp'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.orange,
+                                            side: const BorderSide(color: Colors.orange),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   ],
                                 ),
@@ -1126,7 +1159,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
 
   Widget _buildTransactionItem(
     Transaction transaction,
-    FirebaseDataProvider dataProvider,
+    DataProvider dataProvider,
   ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -1530,7 +1563,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            Consumer<FirebaseDataProvider>(
+                            Consumer<DataProvider>(
                               builder: (context, dataProvider, child) {
                                 return Text(
                                   '${_calculateRemainingWeeks(userId)} weeks',
@@ -1651,7 +1684,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
                     color: theme.colorScheme.primary,
                   ),
                 ),
-                Consumer<FirebaseDataProvider>(
+                Consumer<DataProvider>(
                   builder: (context, dataProvider, child) {
                     return Text(
                       'Weekly: ₹${(userScheme.totalAmount / 52).toStringAsFixed(0)} | Total: ₹${userScheme.totalAmount.toStringAsFixed(0)} | Duration: 52 weeks | Remaining: ${_calculateRemainingWeeks(userId)} weeks',
@@ -1741,8 +1774,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
   /// Calculate remaining weeks for a user
   int _calculateRemainingWeeks(String userId) {
     try {
-      // Get user schemes and user data from FirebaseDataProvider
-      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
+      // Get user schemes and user data from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
       final users = dataProvider.users;
       
@@ -1762,7 +1795,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       
       if (userScheme == null || user == null) return 52;
       
-      // Get all transactions for this user from FirebaseDataProvider
+      // Get all transactions for this user from DataProvider
       final allTransactions = dataProvider.transactions;
       final userTransactions = allTransactions.where((t) => t.userId == userId).toList();
       
@@ -1791,7 +1824,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
   /// Get remaining weeks for display in messages
   int _getRemainingWeeksForUser(String userId) {
     try {
-      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
       final allTransactions = dataProvider.transactions;
       
@@ -1821,8 +1854,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
     if (_selectedUser == null) return 0.0;
     
     try {
-      // Get user's scheme and user data from FirebaseDataProvider
-      final dataProvider = Provider.of<FirebaseDataProvider>(context, listen: false);
+      // Get user's scheme and user data from DataProvider
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
       final userSchemes = dataProvider.userSchemes;
       final users = dataProvider.users;
       
@@ -1937,4 +1970,145 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
   }
 
 
+  /// Send manual WhatsApp message
+  Future<void> _sendManualWhatsAppMessage() async {
+    if (_selectedUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a user first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Get user scheme and transactions
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final userSchemes = dataProvider.userSchemes;
+      final allTransactions = dataProvider.transactions;
+
+      UserScheme? userScheme;
+      try {
+        userScheme = userSchemes.firstWhere((scheme) => scheme.userId == _selectedUser!.id);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No scheme found for this user'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final userTransactions = allTransactions.where((t) => t.userId == _selectedUser!.id).toList();
+      final totalPaid = userTransactions.fold(0.0, (sum, t) => sum + t.amount);
+      final totalBonus = userTransactions.fold(0.0, (sum, t) => sum + t.interest);
+      final pendingAmount = userScheme.totalAmount - totalPaid;
+      final nextDueDate = _calculateNextDueDate(_selectedUser!.id);
+
+      // Create a sample transaction for the message
+      final sampleTransaction = Transaction(
+        id: 'sample',
+        userId: _selectedUser!.id,
+        schemeId: userScheme.id,
+        amount: 0.0, // Will be filled by user
+        paymentMode: PaymentMode.offline,
+        date: DateTime.now(),
+        interest: 0.0,
+        remarks: 'Manual WhatsApp message',
+      );
+
+      // Send WhatsApp message
+      final success = await _whatsappService.sendPaymentConfirmation(
+        user: _selectedUser!,
+        transaction: sampleTransaction,
+        userScheme: userScheme,
+        pendingAmount: pendingAmount,
+        totalBonus: totalBonus,
+        nextDueDate: nextDueDate,
+      );
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp message sent successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp not available. Please check if WhatsApp is installed.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error sending manual WhatsApp message: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending WhatsApp message: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Test WhatsApp functionality
+  Future<void> _testWhatsApp() async {
+    if (_selectedUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a user first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      print('DEBUG: Testing WhatsApp for user: ${_selectedUser!.name}');
+      print('DEBUG: User phone: ${_selectedUser!.mobileNumber}');
+      
+      final success = await _whatsappService.sendWhatsAppMessage(
+        phoneNumber: _selectedUser!.mobileNumber,
+        message: 'Test message from Finance Tracker App. WhatsApp integration is working! 🎉',
+      );
+      
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp test successful! Check if WhatsApp opened.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp test failed. Check console for details.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('DEBUG: Test WhatsApp error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Test error: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
 }
