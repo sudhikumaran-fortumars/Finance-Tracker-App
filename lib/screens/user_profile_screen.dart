@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
-import '../services/app_auth_service.dart';
+import '../services/role_auth_service.dart';
 import '../models/user_role.dart';
 import '../widgets/common/card_widget.dart';
 import '../widgets/common/button_widget.dart';
@@ -14,8 +14,24 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  final AppAuthService _authService = AppAuthService.instance;
-  
+  UserRole? _currentUserRole;
+  String? _currentUserName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  Future<void> _loadUserInfo() async {
+    final role = await RoleAuthService.getCurrentUserRole();
+    final name = await RoleAuthService.getCurrentUserName();
+    setState(() {
+      _currentUserRole = role;
+      _currentUserName = name;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -42,25 +58,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   _buildInfoRow(
                     icon: Icons.person,
                     label: 'Name',
-                    value: _authService.getUserDisplayName(),
+                    value: _currentUserName ?? 'N/A',
                   ),
                   const SizedBox(height: 12),
                   _buildInfoRow(
                     icon: Icons.badge,
                     label: 'Role',
-                    value: _authService.getUserRoleDisplayName(),
+                    value: _currentUserRole?.displayName ?? 'N/A',
                   ),
                   const SizedBox(height: 12),
                   _buildInfoRow(
-                    icon: Icons.email,
-                    label: 'Email',
-                    value: _authService.currentUser?.email ?? 'N/A',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoRow(
-                    icon: Icons.phone,
-                    label: 'Phone',
-                    value: _authService.currentUser?.phoneNumber ?? 'N/A',
+                    icon: Icons.info,
+                    label: 'Description',
+                    value: _currentUserRole?.description ?? 'No role assigned',
                   ),
                 ],
               ),
@@ -75,7 +85,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _authService.currentUser?.role.description ?? 'No role assigned',
+                    _currentUserRole?.description ?? 'No role assigned',
                     style: TextStyle(
                       fontSize: 16,
                       color: isDark ? Colors.grey[300] : Colors.grey[700],
@@ -103,7 +113,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               title: 'Quick Actions',
               child: Column(
                 children: [
-                  if (_authService.canPerformAction('manage_users'))
+                  if (_currentUserRole?.canAccessUserManagement == true)
                     SizedBox(
                       width: double.infinity,
                       child: ButtonWidget(
@@ -120,7 +130,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                     ),
                   
-                  if (_authService.canPerformAction('manage_users'))
+                  if (_currentUserRole?.canAccessUserManagement == true)
                     const SizedBox(height: 12),
                   
                   SizedBox(
@@ -161,22 +171,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   _buildInfoRow(
                     icon: Icons.login,
                     label: 'Last Login',
-                    value: _authService.currentUser?.lastLoginAt != null
-                        ? _formatDateTime(_authService.currentUser!.lastLoginAt!)
-                        : 'Never',
+                    value: 'Current Session',
                   ),
                   const SizedBox(height: 12),
                   _buildInfoRow(
                     icon: Icons.calendar_today,
                     label: 'Account Created',
-                    value: _formatDateTime(_authService.currentUser?.createdAt ?? DateTime.now()),
+                    value: 'Today',
                   ),
                   const SizedBox(height: 12),
                   _buildInfoRow(
                     icon: Icons.verified,
                     label: 'Status',
-                    value: _authService.currentUser?.isActive == true ? 'Active' : 'Inactive',
-                    valueColor: _authService.currentUser?.isActive == true ? Colors.green : Colors.red,
+                    value: 'Active',
+                    valueColor: Colors.green,
                   ),
                 ],
               ),
@@ -225,30 +233,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   List<Widget> _buildPermissionList() {
-    final permissions = _authService.getUserPermissions();
-    final permissionLabels = {
-      'manage_users': 'Manage Users',
-      'view_reports': 'View Reports',
-      'manage_schemes': 'Manage Schemes',
-      'send_whatsapp': 'Send WhatsApp Messages',
-      'view_analytics': 'View Analytics',
-    };
+    if (_currentUserRole == null) return [];
 
-    return permissions.entries.map((entry) {
+    final permissions = [
+      ('Dashboard Access', _currentUserRole!.canAccessDashboard),
+      ('User Management', _currentUserRole!.canAccessUserManagement),
+      ('Daily Entry', _currentUserRole!.canAccessDailyEntry),
+      ('Reports', _currentUserRole!.canAccessReports),
+      ('Payment Handling', _currentUserRole!.canAccessPaymentHandling),
+      ('Notifications', _currentUserRole!.canAccessNotifications),
+      ('Bonus Management', _currentUserRole!.canAccessBonusScreen),
+      ('Reset App', _currentUserRole!.canAccessResetApp),
+    ];
+
+    return permissions.map((permission) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             Icon(
-              entry.value ? Icons.check_circle : Icons.cancel,
-              color: entry.value ? Colors.green : Colors.red,
+              permission.$2 ? Icons.check_circle : Icons.cancel,
+              color: permission.$2 ? Colors.green : Colors.red,
               size: 16,
             ),
             const SizedBox(width: 8),
             Text(
-              permissionLabels[entry.key] ?? entry.key,
+              permission.$1,
               style: TextStyle(
-                color: entry.value ? Colors.green[700] : Colors.red[700],
+                color: permission.$2 ? Colors.green[700] : Colors.red[700],
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -319,28 +331,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 return;
               }
 
-              final success = await _authService.updatePassword(
-                _authService.currentUser!.id,
-                oldPasswordController.text,
-                newPasswordController.text,
+              // For now, just show a success message
+              // In a real app, you would implement password change logic
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Password change feature coming soon!'),
+                  backgroundColor: Colors.blue,
+                ),
               );
-
-              if (success) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Password updated successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to update password'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
             },
             child: const Text('Update'),
           ),
@@ -362,7 +361,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await _authService.logout();
+              await RoleAuthService.logout();
               if (mounted) {
                 Navigator.pushReplacementNamed(context, '/login');
               }

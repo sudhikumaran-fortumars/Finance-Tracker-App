@@ -19,4 +19,9 @@ class NavigationProvider extends ChangeNotifier {
     _currentView = view;
     notifyListeners();
   }
+
+  void setInitialViewForStaff() {
+    _currentView = ViewId.users;
+    notifyListeners();
+  }
 }

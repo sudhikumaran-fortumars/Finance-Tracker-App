@@ -10,17 +10,73 @@ import '../screens/payment_handling_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/bonus_screen.dart';
 import '../screens/reset_app_screen.dart';
+import '../services/role_auth_service.dart';
+import '../models/user_role.dart';
 
-class SimpleMainScreen extends StatelessWidget {
+class SimpleMainScreen extends StatefulWidget {
   const SimpleMainScreen({super.key});
 
   @override
+  State<SimpleMainScreen> createState() => _SimpleMainScreenState();
+}
+
+class _SimpleMainScreenState extends State<SimpleMainScreen> {
+  UserRole? _currentUserRole;
+  String? _currentUserName;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  Future<void> _loadUserInfo() async {
+    final role = await RoleAuthService.getCurrentUserRole();
+    final name = await RoleAuthService.getCurrentUserName();
+    print('🔍 Loaded user info - Role: $role, Name: $name');
+    setState(() {
+      _currentUserRole = role;
+      _currentUserName = name;
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    // Force staff users to start with Users screen instead of Dashboard
+    if (_currentUserRole == UserRole.staff) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navigationProvider = context.read<NavigationProvider>();
+        navigationProvider.setInitialViewForStaff();
+      });
+    }
+    
     return Consumer<NavigationProvider>(
       builder: (context, navigationProvider, child) {
         return Scaffold(
           appBar: AppBar(
-            title: Text(_getAppBarTitle(navigationProvider.currentView)),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_getAppBarTitle(navigationProvider.currentView)),
+                if (_currentUserRole != null && _currentUserName != null)
+                  Text(
+                    '${_currentUserName} (${_currentUserRole!.displayName})',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+              ],
+            ),
             backgroundColor: Colors.transparent,
             elevation: 0,
             actions: [
@@ -73,6 +129,30 @@ class SimpleMainScreen extends StatelessWidget {
   }
 
   Widget _getCurrentScreen(ViewId viewId) {
+    // Check if staff is trying to access restricted screens
+    if (_currentUserRole == UserRole.staff) {
+      print('🔍 Staff user trying to access: $viewId');
+      switch (viewId) {
+        case ViewId.dashboard:
+        case ViewId.reports:
+        case ViewId.payments:
+        case ViewId.notifications:
+        case ViewId.bonus:
+          // Redirect staff to Users screen if they try to access restricted screens
+          print('🔍 Redirecting staff from $viewId to Users');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final navigationProvider = context.read<NavigationProvider>();
+            navigationProvider.navigateTo(ViewId.users);
+          });
+          return const UserManagementScreen();
+        case ViewId.users:
+        case ViewId.entry:
+          // Allow staff to access these screens
+          print('🔍 Staff accessing allowed screen: $viewId');
+          break;
+      }
+    }
+    
     switch (viewId) {
       case ViewId.dashboard:
         return const DashboardScreen();
@@ -114,41 +194,93 @@ class SimpleMainScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.dashboard,
-                Icons.dashboard_rounded,
-                'Dashboard',
-              ),
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.users,
-                Icons.people_rounded,
-                'Users',
-              ),
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.entry,
-                Icons.add_card_rounded,
-                'Entry',
-              ),
-              _buildNavItem(
-                context,
-                navigationProvider,
-                ViewId.reports,
-                Icons.analytics_rounded,
-                'Reports',
-              ),
-              _buildMoreButton(context, navigationProvider),
-            ],
+            children: _buildNavigationItems(context, navigationProvider),
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildNavigationItems(
+    BuildContext context,
+    NavigationProvider navigationProvider,
+  ) {
+    final items = <Widget>[];
+    
+    // If role is null, default to staff permissions (limited access)
+    final userRole = _currentUserRole ?? UserRole.staff;
+
+    // For staff: strictly show only Users and Entry
+    if (userRole == UserRole.staff) {
+      print('🔍 Building navigation for STAFF - showing only Users and Entry');
+      items.add(_buildNavItem(
+        context,
+        navigationProvider,
+        ViewId.users,
+        Icons.people_rounded,
+        'Users',
+      ));
+      items.add(_buildNavItem(
+        context,
+        navigationProvider,
+        ViewId.entry,
+        Icons.add_card_rounded,
+        'Entry',
+      ));
+      return items;
+    }
+
+    // Admin and other roles get full navigation
+    // Dashboard - Admin only
+    if (userRole.canAccessDashboard) {
+      items.add(_buildNavItem(
+        context,
+        navigationProvider,
+        ViewId.dashboard,
+        Icons.dashboard_rounded,
+        'Dashboard',
+      ));
+    }
+
+    // Users - Both Admin and Staff
+    if (userRole.canAccessUserManagement) {
+      items.add(_buildNavItem(
+        context,
+        navigationProvider,
+        ViewId.users,
+        Icons.people_rounded,
+        'Users',
+      ));
+    }
+
+    // Daily Entry - Both Admin and Staff
+    if (userRole.canAccessDailyEntry) {
+      items.add(_buildNavItem(
+        context,
+        navigationProvider,
+        ViewId.entry,
+        Icons.add_card_rounded,
+        'Entry',
+      ));
+    }
+
+    // Reports - Admin only
+    if (userRole.canAccessReports) {
+      items.add(_buildNavItem(
+        context,
+        navigationProvider,
+        ViewId.reports,
+        Icons.analytics_rounded,
+        'Reports',
+      ));
+    }
+
+    // More button - Admin only
+    if (userRole.canAccessDashboard) {
+      items.add(_buildMoreButton(context, navigationProvider));
+    }
+
+    return items;
   }
 
   Widget _buildNavItem(
@@ -296,31 +428,39 @@ class SimpleMainScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            _buildMoreOption(
-              context,
-              navigationProvider,
-              ViewId.payments,
-              Icons.payment_rounded,
-              'Payment Handling',
-              'Manage payment processing',
-            ),
-            _buildMoreOption(
-              context,
-              navigationProvider,
-              ViewId.notifications,
-              Icons.notifications_rounded,
-              'Notifications',
-              'Configure alerts and reminders',
-            ),
-            _buildMoreOption(
-              context,
-              navigationProvider,
-              ViewId.bonus,
-              Icons.card_giftcard_rounded,
-              'Bonus Management',
-              'Manage customer bonuses',
-            ),
-            _buildResetOption(context),
+            // Payment Handling - Admin only
+            if ((_currentUserRole ?? UserRole.staff).canAccessPaymentHandling)
+              _buildMoreOption(
+                context,
+                navigationProvider,
+                ViewId.payments,
+                Icons.payment_rounded,
+                'Payment Handling',
+                'Manage payment processing',
+              ),
+            // Notifications - Admin only
+            if ((_currentUserRole ?? UserRole.staff).canAccessNotifications)
+              _buildMoreOption(
+                context,
+                navigationProvider,
+                ViewId.notifications,
+                Icons.notifications_rounded,
+                'Notifications',
+                'Configure alerts and reminders',
+              ),
+            // Bonus Management - Admin only
+            if ((_currentUserRole ?? UserRole.staff).canAccessBonusScreen)
+              _buildMoreOption(
+                context,
+                navigationProvider,
+                ViewId.bonus,
+                Icons.card_giftcard_rounded,
+                'Bonus Management',
+                'Manage customer bonuses',
+              ),
+            // Reset App - Admin only
+            if ((_currentUserRole ?? UserRole.staff).canAccessResetApp)
+              _buildResetOption(context),
             const SizedBox(height: 20),
           ],
         ),
@@ -402,10 +542,12 @@ class SimpleMainScreen extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                // Navigate to login screen or perform logout
-                Navigator.of(context).pushReplacementNamed('/login');
+                await RoleAuthService.logout();
+                if (mounted) {
+                  Navigator.of(context).pushReplacementNamed('/login');
+                }
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Logout'),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
-import '../services/app_auth_service.dart';
+import '../services/role_auth_service.dart';
 import '../widgets/common/button_widget.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -23,9 +23,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill with default credentials for easy testing
-    _usernameController.text = 'owner';
-    _passwordController.text = 'owner123';
+    // Pre-fill with admin credentials for easy testing
+    _usernameController.text = 'admin';
+    _passwordController.text = 'admin123';
   }
 
   @override
@@ -242,7 +242,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          _buildCredentialRow('Owner', 'owner', 'owner123'),
+                          _buildCredentialRow('Admin', 'admin', 'admin123'),
                           _buildCredentialRow('Staff', 'staff', 'staff123'),
                         ],
                       ),
@@ -284,8 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final authService = AppAuthService.instance;
-      final success = await authService.login(
+      final success = await RoleAuthService.login(
         _usernameController.text.trim(),
         _passwordController.text.trim(),
       );

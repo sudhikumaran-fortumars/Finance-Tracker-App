@@ -9,7 +9,7 @@ import 'providers/firebase_data_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'screens/simple_main_screen.dart';
-import 'services/app_auth_service.dart';
+import 'services/role_auth_service.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/user_management_screen.dart';
 import 'screens/daily_entry_screen.dart';
@@ -48,15 +48,42 @@ class MyApp extends StatelessWidget {
             themeMode: themeProvider.isDarkMode
                 ? ThemeMode.dark
                 : ThemeMode.light,
-            home: const SimpleMainScreen(),
+            home: const AuthWrapper(),
             routes: {
               '/login': (context) => const LoginScreen(),
-              '/main': (context) => const MainApp(),
+              // Route main to SimpleMainScreen so role restrictions apply
+              '/main': (context) => const SimpleMainScreen(),
               '/profile': (context) => const UserProfileScreen(),
             },
           );
         },
       ),
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: RoleAuthService.isLoggedIn(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        if (snapshot.data == true) {
+          return const SimpleMainScreen();
+        } else {
+          return const LoginScreen();
+        }
+      },
     );
   }
 }
@@ -490,7 +517,7 @@ class MainApp extends StatelessWidget {
 
   Future<void> _logout(BuildContext context) async {
     try {
-      await AppAuthService.instance.logout();
+      await RoleAuthService.logout();
       
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(

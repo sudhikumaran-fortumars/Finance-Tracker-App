@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/app_auth_service.dart';
+import '../services/role_auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -52,11 +52,8 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     try {
-      // Initialize the app with default users
-      await AppAuthService.instance.initializeApp();
-      
       // Check if user is already logged in
-      final isLoggedIn = await AppAuthService.instance.checkLoginState();
+      final isLoggedIn = await RoleAuthService.isLoggedIn();
       
       if (isLoggedIn) {
         Navigator.of(context).pushReplacementNamed('/main');

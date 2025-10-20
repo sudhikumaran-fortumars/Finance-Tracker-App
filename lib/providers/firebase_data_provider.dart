@@ -261,30 +261,57 @@ class FirebaseDataProvider extends ChangeNotifier {
       // Calculate remaining amount (total scheme amounts - amount collected)
       final remainingAmount = totalSchemeAmounts - totalAmountCollected;
       
-      // Calculate weekly collection amount (sum of weekly amounts from all active schemes)
-      // Only include schemes for existing users
-      final totalWeeklyTarget = _userSchemes
-          .where((scheme) => existingUserIds.contains(scheme.userId))
-          .fold(0.0, (sum, scheme) {
-        // Calculate weekly amount for each scheme (total amount / 52 weeks)
-        final weeklyAmount = scheme.totalAmount / 52;
-        return sum + weeklyAmount;
-      });
+      // Weekly collection logic: Show only the current week's outstanding amount
+      // This ensures that payments from previous weeks are not included
+      // and only the current week's due amount is displayed
       
-      // Calculate amount collected this week
       final now = DateTime.now();
-      final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      final endOfWeek = startOfWeek.add(const Duration(days: 6));
-      
-      final thisWeekCollected = _transactions
-          .where((t) => existingUserIds.contains(t.userId) &&
-                       t.date.isAfter(startOfWeek.subtract(const Duration(seconds: 1))) && 
-                       t.date.isBefore(endOfWeek.add(const Duration(seconds: 1))))
-          .fold(0.0, (sum, t) => sum + t.amount);
-      
-      // Calculate remaining weekly collection (target - collected this week)
-      // Ensure it doesn't go negative (if someone pays more than weekly target)
-      final weeklyCollectionAmount = (totalWeeklyTarget - thisWeekCollected).clamp(0.0, totalWeeklyTarget);
+      double weeklyCollectionAmount = 0.0;
+
+      for (final scheme in _userSchemes.where((s) => existingUserIds.contains(s.userId))) {
+        // Skip schemes that haven't started yet
+        if (scheme.startDate.isAfter(now)) {
+          continue;
+        }
+
+        // Weekly amount for this scheme (total amount / 52 weeks)
+        final weeklyAmount = scheme.totalAmount / 52;
+
+        // Calculate which week we're currently in for this scheme
+        final daysSinceStart = now.difference(scheme.startDate).inDays;
+        final currentWeekNumber = (daysSinceStart ~/ 7) + 1; // Week 1, 2, 3, etc.
+        
+        // Only show amount for current week (don't include future weeks)
+        if (currentWeekNumber <= 52) {
+          // Find the current week's date range for this scheme
+          final currentWeekStart = scheme.startDate.add(Duration(days: (currentWeekNumber - 1) * 7));
+          final currentWeekEnd = currentWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+          
+          // Only include if we're within the current week's date range
+          if (now.isAfter(currentWeekStart.subtract(const Duration(seconds: 1))) && 
+              now.isBefore(currentWeekEnd.add(const Duration(seconds: 1)))) {
+            
+            // Amount collected for this scheme in the current week only
+            // Include historical transactions that may have been saved without
+            // the proper schemeId (fallback to userId match). This avoids
+            // over-counting weekly dues after we fixed schemeId wiring.
+            final collectedThisWeek = _transactions
+                .where((t) => (t.schemeId == scheme.id || t.userId == scheme.userId) &&
+                              t.date.isAfter(currentWeekStart.subtract(const Duration(seconds: 1))) &&
+                              t.date.isBefore(currentWeekEnd.add(const Duration(seconds: 1))))
+                .fold(0.0, (sum, t) => sum + t.amount);
+
+            // Only show outstanding amount for current week (weekly amount - collected this week)
+            // If already collected this week, show 0
+            final outstandingThisWeek = (weeklyAmount - collectedThisWeek).clamp(0.0, weeklyAmount);
+            
+            // Only add to total if there's still an outstanding amount
+            if (outstandingThisWeek > 0) {
+              weeklyCollectionAmount += outstandingThisWeek;
+            }
+          }
+        }
+      }
       
       final todayCollection = _transactions
           .where((t) => existingUserIds.contains(t.userId) &&

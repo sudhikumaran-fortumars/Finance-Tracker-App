@@ -334,7 +334,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
       });
 
       try {
-        final dataProvider = context.read<DataProvider>();
+        final dataProvider = context.read<FirebaseDataProvider>();
         final amount = double.parse(_amountController.text);
         
         // Calculate bonus based on 7-day rule
@@ -354,10 +354,16 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         // Mark this transaction ID as being processed
         _processedTransactionIds.add(transactionId);
         
+        // Identify the user's active scheme to attach correct schemeId
+        final activeUserScheme = _userSchemes.firstWhere(
+          (scheme) => scheme.userId == _selectedUser!.id,
+          orElse: () => _userSchemes.first,
+        );
+
         final transaction = Transaction(
           id: transactionId,
           userId: _selectedUser!.id,
-          schemeId: '1', // Default scheme ID
+          schemeId: activeUserScheme.id,
           amount: amount,
           paymentMode: _paymentMode,
           date: _selectedDate,
@@ -371,12 +377,8 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
         await dataProvider.addTransaction(transaction);
 
         // Find and update user scheme balance
-        final userScheme = _userSchemes.firstWhere(
-          (scheme) => scheme.userId == _selectedUser!.id,
-          orElse: () => _userSchemes.first, // Fallback to first scheme
-        );
-        final updatedScheme = userScheme.copyWith(
-          currentBalance: userScheme.currentBalance + amount,
+        final updatedScheme = activeUserScheme.copyWith(
+          currentBalance: activeUserScheme.currentBalance + amount,
         );
         await _storageService.saveUserScheme(updatedScheme);
 

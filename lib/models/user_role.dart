@@ -1,13 +1,13 @@
 enum UserRole {
-  owner,
+  admin,
   staff,
 }
 
 extension UserRoleExtension on UserRole {
   String get displayName {
     switch (this) {
-      case UserRole.owner:
-        return 'Owner';
+      case UserRole.admin:
+        return 'Admin';
       case UserRole.staff:
         return 'Staff';
     }
@@ -15,56 +15,19 @@ extension UserRoleExtension on UserRole {
 
   String get description {
     switch (this) {
-      case UserRole.owner:
+      case UserRole.admin:
         return 'Full access to all features';
       case UserRole.staff:
-        return 'Limited access to core features';
+        return 'Limited access - User management and daily entry only';
     }
   }
 
-  bool get canManageUsers {
-    switch (this) {
-      case UserRole.owner:
-        return true;
-      case UserRole.staff:
-        return false;
-    }
-  }
-
-  bool get canViewReports {
-    switch (this) {
-      case UserRole.owner:
-        return true;
-      case UserRole.staff:
-        return true;
-    }
-  }
-
-  bool get canManageSchemes {
-    switch (this) {
-      case UserRole.owner:
-        return true;
-      case UserRole.staff:
-        return false;
-    }
-  }
-
-  bool get canSendWhatsApp {
-    switch (this) {
-      case UserRole.owner:
-        return true;
-      case UserRole.staff:
-        return true;
-    }
-  }
-
-  bool get canViewAnalytics {
-    switch (this) {
-      case UserRole.owner:
-        return true;
-      case UserRole.staff:
-        return false;
-    }
-  }
+  bool get canAccessDashboard => this == UserRole.admin;
+  bool get canAccessReports => this == UserRole.admin;
+  bool get canAccessUserManagement => true; // Both roles can access
+  bool get canAccessDailyEntry => true; // Both roles can access
+  bool get canAccessPaymentHandling => this == UserRole.admin;
+  bool get canAccessBonusScreen => this == UserRole.admin;
+  bool get canAccessNotifications => this == UserRole.admin;
+  bool get canAccessResetApp => this == UserRole.admin;
 }
-
