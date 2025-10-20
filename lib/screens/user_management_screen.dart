@@ -7,6 +7,7 @@ import '../models/user_scheme.dart';
 import '../models/transaction.dart';
 import '../providers/firebase_data_provider.dart';
 import '../services/indian_address_service.dart';
+import '../services/role_auth_service.dart';
 import '../widgets/common/card_widget.dart';
 import '../widgets/common/button_widget.dart';
 import '../utils/calculations.dart';
@@ -249,6 +250,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         color: isDark ? Colors.grey[500] : Colors.grey[500],
                       ),
                     ),
+                    if (user.createdBy != null && user.createdBy!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Created by: ${user.createdBy}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isDark ? Colors.grey[500] : Colors.grey[500],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1030,7 +1040,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         serialNumber = widget.user!.serialNumber;
       }
 
-      final user = User(
+          final creatorName = await RoleAuthService.getCurrentUserName();
+          final user = User(
         id: widget.user?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: _nameController.text,
         mobileNumber: _mobileController.text,
@@ -1039,6 +1050,7 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         selectedScheme: _assignScheme && _selectedScheme != null ? _selectedScheme!.name : null,
         status: UserStatus.active,
         createdAt: _selectedDate ?? DateTime.now(),
+            createdBy: creatorName ?? 'Staff',
         schemes: widget.user?.schemes ?? [],
       );
 

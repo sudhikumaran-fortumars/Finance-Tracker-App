@@ -404,65 +404,73 @@ class _SimpleMainScreenState extends State<SimpleMainScreen> {
   ) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 12,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'More Options',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 20),
+              Text(
+                'More Options',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            // Payment Handling - Admin only
-            if ((_currentUserRole ?? UserRole.staff).canAccessPaymentHandling)
-              _buildMoreOption(
-                context,
-                navigationProvider,
-                ViewId.payments,
-                Icons.payment_rounded,
-                'Payment Handling',
-                'Manage payment processing',
-              ),
-            // Notifications - Admin only
-            if ((_currentUserRole ?? UserRole.staff).canAccessNotifications)
-              _buildMoreOption(
-                context,
-                navigationProvider,
-                ViewId.notifications,
-                Icons.notifications_rounded,
-                'Notifications',
-                'Configure alerts and reminders',
-              ),
-            // Bonus Management - Admin only
-            if ((_currentUserRole ?? UserRole.staff).canAccessBonusScreen)
-              _buildMoreOption(
-                context,
-                navigationProvider,
-                ViewId.bonus,
-                Icons.card_giftcard_rounded,
-                'Bonus Management',
-                'Manage customer bonuses',
-              ),
-            // Reset App - Admin only
-            if ((_currentUserRole ?? UserRole.staff).canAccessResetApp)
-              _buildResetOption(context),
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 20),
+              // Payment Handling - Admin only
+              if ((_currentUserRole ?? UserRole.staff).canAccessPaymentHandling)
+                _buildMoreOption(
+                  context,
+                  navigationProvider,
+                  ViewId.payments,
+                  Icons.payment_rounded,
+                  'Payment Handling',
+                  'Manage payment processing',
+                ),
+              // Notifications - Admin only
+              if ((_currentUserRole ?? UserRole.staff).canAccessNotifications)
+                _buildMoreOption(
+                  context,
+                  navigationProvider,
+                  ViewId.notifications,
+                  Icons.notifications_rounded,
+                  'Notifications',
+                  'Configure alerts and reminders',
+                ),
+              // Bonus Management - Admin only
+              if ((_currentUserRole ?? UserRole.staff).canAccessBonusScreen)
+                _buildMoreOption(
+                  context,
+                  navigationProvider,
+                  ViewId.bonus,
+                  Icons.card_giftcard_rounded,
+                  'Bonus Management',
+                  'Manage customer bonuses',
+                ),
+              // Reset App - Admin only
+              if ((_currentUserRole ?? UserRole.staff).canAccessResetApp)
+                _buildResetOption(context),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );

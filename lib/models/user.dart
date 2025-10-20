@@ -13,6 +13,7 @@ class User {
   final String? selectedScheme;
   final UserStatus status;
   final DateTime createdAt;
+  final String? createdBy; // admin or staff display name/identifier
   final List<UserScheme> schemes;
 
   User({
@@ -25,6 +26,7 @@ class User {
     this.selectedScheme,
     required this.status,
     required this.createdAt,
+    this.createdBy,
     required this.schemes,
   });
 
@@ -44,6 +46,7 @@ class User {
         orElse: () => UserStatus.active,
       ),
       createdAt: DateTime.parse(json['createdAt']),
+      createdBy: json['createdBy'],
       schemes:
           (json['schemes'] as List<dynamic>?)
               ?.map((scheme) => UserScheme.fromJson(scheme))
@@ -63,6 +66,7 @@ class User {
       'selectedScheme': selectedScheme,
       'status': status.toString().split('.').last,
       'createdAt': createdAt.toIso8601String(),
+      'createdBy': createdBy,
       'schemes': schemes.map((scheme) => scheme.toJson()).toList(),
     };
   }
@@ -77,6 +81,7 @@ class User {
     String? selectedScheme,
     UserStatus? status,
     DateTime? createdAt,
+    String? createdBy,
     List<UserScheme>? schemes,
   }) {
     return User(
@@ -89,6 +94,7 @@ class User {
       selectedScheme: selectedScheme ?? this.selectedScheme,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
+      createdBy: createdBy ?? this.createdBy,
       schemes: schemes ?? this.schemes,
     );
   }

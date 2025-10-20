@@ -23,9 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill with admin credentials for easy testing
-    _usernameController.text = 'admin';
-    _passwordController.text = 'admin123';
   }
 
   @override
@@ -216,38 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Default Credentials Info
-                  Card(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.blue.withValues(alpha: 0.3)),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.info, color: Colors.blue[700], size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Default Credentials',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          _buildCredentialRow('Admin', 'admin', 'admin123'),
-                          _buildCredentialRow('Staff', 'staff', 'staff123'),
-                        ],
-                      ),
-                    ),
-                  ),
+                // Removed default credentials info card for production
                 ],
               ),
             ),

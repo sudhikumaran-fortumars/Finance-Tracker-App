@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/role_auth_service.dart';
 import '../models/user.dart';
 import '../models/address.dart';
 import '../models/transaction.dart';
@@ -372,6 +373,7 @@ class _DailyEntryScreenState extends State<DailyEntryScreen> {
               ? _remarksController.text
               : null,
           receiptNumber: 'RCP$transactionId',
+          collectedBy: (await RoleAuthService.getCurrentUserName()) ?? 'Staff',
         );
 
         await dataProvider.addTransaction(transaction);

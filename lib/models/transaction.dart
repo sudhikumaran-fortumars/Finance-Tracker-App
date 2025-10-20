@@ -13,6 +13,7 @@ class Transaction {
   final double interest;
   final String? remarks;
   final String? receiptNumber;
+  final String? collectedBy; // admin or staff display name/identifier
 
   Transaction({
     required this.id,
@@ -25,6 +26,7 @@ class Transaction {
     required this.interest,
     this.remarks,
     this.receiptNumber,
+    this.collectedBy,
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -41,6 +43,7 @@ class Transaction {
       interest: (json['interest'] ?? 0.0).toDouble(),
       remarks: json['remarks'],
       receiptNumber: json['receiptNumber'],
+      collectedBy: json['collectedBy'],
     );
   }
 
@@ -56,6 +59,7 @@ class Transaction {
       'interest': interest,
       'remarks': remarks,
       'receiptNumber': receiptNumber,
+      'collectedBy': collectedBy,
     };
   }
 
@@ -70,6 +74,7 @@ class Transaction {
     double? interest,
     String? remarks,
     String? receiptNumber,
+    String? collectedBy,
   }) {
     return Transaction(
       id: id ?? this.id,
@@ -82,6 +87,7 @@ class Transaction {
       interest: interest ?? this.interest,
       remarks: remarks ?? this.remarks,
       receiptNumber: receiptNumber ?? this.receiptNumber,
+      collectedBy: collectedBy ?? this.collectedBy,
     );
   }
 
